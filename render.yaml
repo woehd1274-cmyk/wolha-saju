@@ -1,0 +1,15 @@
+# Render 배포 설정 (Blueprint)
+# Render에서 이 저장소를 연결하면 아래 설정을 자동으로 읽어요.
+services:
+  - type: web
+    name: wolha-saju
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      # ANTHROPIC_API_KEY 는 값을 코드에 넣지 않고 Render 대시보드에서 직접 입력합니다.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RATE_LIMIT_PER_HOUR
+        value: "20"
