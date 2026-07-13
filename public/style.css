@@ -344,6 +344,32 @@ button#submit-btn:disabled { opacity: .55; box-shadow: none; }
 
 @keyframes pop { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: none; } }
 
+/* 구독 페이월 모달 */
+.modal-overlay { position: fixed; inset: 0; background: rgba(6, 8, 14, .72); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+.modal { position: relative; width: 100%; max-width: 380px; background: linear-gradient(180deg, var(--surface), var(--bg-1)); border: 1px solid var(--gold-deep); border-radius: 18px; padding: 26px 22px 22px; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,.5); animation: pop .35s cubic-bezier(.2,.8,.3,1.1) both; }
+.modal-x { position: absolute; top: 12px; right: 14px; background: none; border: none; color: var(--ink-soft); font-size: 16px; cursor: pointer; }
+.modal-emoji { font-size: 38px; filter: drop-shadow(0 0 12px rgba(212,180,106,.5)); }
+.modal-title { font-size: 19px; margin: 6px 0 8px; }
+.modal-desc { color: var(--ink-soft); font-size: 14px; line-height: 1.7; margin: 0 0 18px; }
+.modal-btn { width: 100%; padding: 13px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; border: 1px solid var(--line-strong); background: var(--bg-0); color: var(--ink); transition: .15s; }
+.modal-btn:hover { border-color: var(--gold-deep); }
+.modal-btn.primary { border: none; color: #1a1206; background: linear-gradient(180deg, var(--gold), var(--gold-deep)); box-shadow: 0 8px 22px rgba(212,180,106,.25); }
+.modal-divider { display: flex; align-items: center; gap: 10px; color: var(--ink-soft); font-size: 12px; margin: 18px 0 12px; }
+.modal-divider::before, .modal-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.license-row { display: flex; gap: 8px; }
+.license-row input { flex: 1; padding: 11px 12px; background: var(--bg-0); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 10px; font-size: 14px; }
+.license-row input:focus { outline: none; border-color: var(--gold); }
+.license-row .modal-btn { width: auto; padding: 11px 16px; }
+.license-msg { font-size: 13px; margin-top: 10px; min-height: 16px; color: var(--ink-soft); }
+.license-msg.ok { color: #7fe0b0; }
+.license-msg.err { color: #ffb0a6; }
+
+.lock-note { text-align: center; color: var(--ink-soft); font-size: 14px; line-height: 1.7; padding: 18px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; }
+
+.foot-links { margin-top: 8px; }
+.foot-links a { color: var(--ink-soft); font-size: 12px; text-decoration: underline; }
+.foot-links a:hover { color: var(--gold); }
+
 /* 유리한 시기 (세운) */
 .years-scroll { overflow-x: auto; margin: 0 -6px; padding: 4px 6px 10px; -webkit-overflow-scrolling: touch; }
 .years { display: inline-flex; gap: 8px; }

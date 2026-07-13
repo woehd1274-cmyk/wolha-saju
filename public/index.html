@@ -87,8 +87,26 @@
 
       <footer class="foot">
         사주는 정해진 운명이 아니라, 타고난 기질과 흐름을 참고하는 재미로 봐 주세요. 🌿
+        <div class="foot-links"><a href="/policy.html" target="_blank">이용약관·환불·개인정보</a></div>
       </footer>
     </main>
+  </div>
+
+  <!-- 구독 안내(페이월) 모달 -->
+  <div class="modal-overlay" id="paywall" hidden>
+    <div class="modal">
+      <button class="modal-x" id="paywall-close" aria-label="닫기">✕</button>
+      <div class="modal-emoji">🌙</div>
+      <h3 class="modal-title">구독하고 풀이 받기</h3>
+      <p class="modal-desc">사주 명식·궁합 점수는 <b>무료</b>예요.<br />월하의 <b>AI 풀이</b>는 구독자 전용이랍니다.</p>
+      <button class="modal-btn primary" id="paywall-subscribe">구독하기</button>
+      <div class="modal-divider"><span>이미 구독하셨나요?</span></div>
+      <div class="license-row">
+        <input type="text" id="license-input" placeholder="라이선스 키 (이메일로 받은 키)" autocomplete="off" />
+        <button class="modal-btn" id="license-check">확인</button>
+      </div>
+      <div class="license-msg" id="license-msg"></div>
+    </div>
   </div>
 
   <script src="app.js"></script>

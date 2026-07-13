@@ -157,26 +157,83 @@ async function runFlow({ endpoint, payload, service, chartLabel }) {
     chartPanel.hidden = false;
     chartPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    // AI 풀이
-    readingPanel.hidden = false;
-    readingEl.innerHTML = SKELETON;
-    statusEl.className = "status loading";
-    statusEl.textContent = "월하가 풀이하는 중이에요";
+    // AI 풀이 (구독 게이트는 runReading 안에서 처리)
+    await runReading(data.compact, service);
+  } catch (err) {
+    chartPanel.hidden = false;
+    showError(chartEl, err.message);
+  }
+}
 
-    const readRes = await fetch("/api/interpret", {
+/* ---------- 구독(페이월) + AI 풀이 실행 ---------- */
+let CONFIG = { paywall: false, checkoutUrl: "" };
+let pendingReading = null;
+fetch("/api/config").then((r) => r.json()).then((c) => { CONFIG = c; }).catch(() => {});
+
+const getLicense = () => localStorage.getItem("wolha_license") || "";
+const setLicense = (k) => localStorage.setItem("wolha_license", k);
+
+const paywall = document.getElementById("paywall");
+const showPaywall = () => { paywall.hidden = false; };
+const hidePaywall = () => { paywall.hidden = true; };
+
+document.getElementById("paywall-close").addEventListener("click", hidePaywall);
+paywall.addEventListener("click", (e) => { if (e.target === paywall) hidePaywall(); });
+document.getElementById("paywall-subscribe").addEventListener("click", () => {
+  if (CONFIG.checkoutUrl) window.open(CONFIG.checkoutUrl, "_blank", "noopener");
+  else alert("결제 링크가 아직 설정되지 않았어요.");
+});
+document.getElementById("license-check").addEventListener("click", async () => {
+  const input = document.getElementById("license-input");
+  const msg = document.getElementById("license-msg");
+  const key = input.value.trim();
+  if (!key) { msg.textContent = "키를 입력해 주세요."; msg.className = "license-msg err"; return; }
+  msg.textContent = "확인 중…"; msg.className = "license-msg";
+  try {
+    const res = await fetch("/api/license/validate", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }),
+    });
+    const d = await res.json();
+    if (d.valid) {
+      setLicense(key);
+      msg.textContent = "✅ 확인됐어요! 풀이를 열게요."; msg.className = "license-msg ok";
+      setTimeout(() => {
+        hidePaywall();
+        if (pendingReading) { const p = pendingReading; pendingReading = null; runReading(p.compact, p.service); }
+      }, 700);
+    } else {
+      msg.textContent = "❌ 유효하지 않은 키예요. (구독이 만료됐거나 오타일 수 있어요)"; msg.className = "license-msg err";
+    }
+  } catch {
+    msg.textContent = "확인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요."; msg.className = "license-msg err";
+  }
+});
+
+async function runReading(compact, service) {
+  readingPanel.hidden = false;
+  readingEl.innerHTML = SKELETON;
+  statusEl.className = "status loading";
+  statusEl.textContent = "월하가 풀이하는 중이에요";
+  try {
+    const res = await fetch("/api/interpret", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ compact: data.compact, service }),
+      body: JSON.stringify({ compact, service, license: getLicense() }),
     });
-    const readData = await readRes.json();
-    if (!readRes.ok) throw new Error(readData.error || "풀이에 실패했어요.");
-
-    statusEl.className = "status";
-    statusEl.textContent = "";
-    readingEl.innerHTML = readData.html;
+    const d = await res.json();
+    if (res.status === 402 || d.needSubscription) {
+      pendingReading = { compact, service };
+      statusEl.className = "status"; statusEl.textContent = "";
+      readingEl.innerHTML = '<div class="lock-note">🔒 AI 풀이는 구독자 전용이에요.<br>아래에서 구독하거나, 이미 구독했다면 라이선스 키를 넣으면 바로 열려요.</div>';
+      showPaywall();
+      return;
+    }
+    if (!res.ok) throw new Error(d.error || "풀이에 실패했어요.");
+    statusEl.className = "status"; statusEl.textContent = "";
+    readingEl.innerHTML = d.html;
   } catch (err) {
-    if (chartPanel.hidden) { chartPanel.hidden = false; showError(chartEl, err.message); }
-    else { readingPanel.hidden = false; statusEl.className = "status"; statusEl.textContent = ""; showError(readingEl, err.message); }
+    statusEl.className = "status"; statusEl.textContent = "";
+    showError(readingEl, err.message);
   }
 }
 

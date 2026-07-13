@@ -33,6 +33,11 @@ const MODEL = process.env.SAJU_MODEL || "claude-sonnet-5";
 const USE_API_KEY = !!process.env.ANTHROPIC_API_KEY;
 const anthropic = USE_API_KEY ? new Anthropic() : null;
 
+// 구독 결제(레몬스퀴지): 체크아웃 URL이 설정되면 AI 풀이를 '구독자 전용'으로 잠금.
+// 설정 전에는 잠금이 꺼져 있어 누구나 무료로 사용(=지금 상태 유지).
+const LS_CHECKOUT_URL = process.env.LEMONSQUEEZY_CHECKOUT_URL || "";
+const PAYWALL_ON = !!LS_CHECKOUT_URL;
+
 app.use(express.json({ limit: "64kb" }));
 app.set("trust proxy", 1); // 배포(프록시) 환경에서 실제 접속자 IP 인식
 
@@ -539,6 +544,34 @@ app.post("/api/compat", (req, res) => {
   }
 });
 
+/* ---------- 구독(라이선스) 검증 ---------- */
+const licCache = new Map(); // key -> { valid, status, exp }
+
+async function validateLicense(key) {
+  if (!key || typeof key !== "string" || key.length < 8 || key.length > 200) return { valid: false };
+  try {
+    const resp = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ license_key: key.trim() }),
+    });
+    const data = await resp.json();
+    return { valid: !!data.valid, status: data?.license_key?.status || null };
+  } catch (e) {
+    console.error("[license] 검증 오류:", e.message);
+    return { valid: false, error: true };
+  }
+}
+
+async function validateLicenseCached(key) {
+  const now = Date.now();
+  const c = licCache.get(key);
+  if (c && c.exp > now) return c;
+  const r = await validateLicense(key);
+  if (!r.error) licCache.set(key, { ...r, exp: now + 5 * 60 * 1000 }); // 5분 캐시
+  return r;
+}
+
 // 풀이 생성: API 키가 있으면 Messages API(빠름·과금), 없으면 구독(Agent SDK)
 async function generateReading(systemPrompt, userPrompt) {
   if (USE_API_KEY) {
@@ -560,9 +593,26 @@ async function generateReading(systemPrompt, userPrompt) {
   return text;
 }
 
-/* ---------- 3) AI 풀이 (서비스별 프롬프트 · 요청 제한) ---------- */
+/* ---------- 앱 설정 / 구독 확인 ---------- */
+app.get("/api/config", (req, res) => {
+  res.json({ paywall: PAYWALL_ON, checkoutUrl: LS_CHECKOUT_URL });
+});
+
+app.post("/api/license/validate", async (req, res) => {
+  const r = await validateLicense(req.body?.key);
+  res.json({ valid: r.valid, status: r.status || null });
+});
+
+/* ---------- 3) AI 풀이 (서비스별 프롬프트 · 요청 제한 · 구독 게이트) ---------- */
 app.post("/api/interpret", interpretLimiter, async (req, res) => {
   try {
+    // 구독 잠금이 켜져 있으면 유효한 라이선스가 있어야 풀이 제공
+    if (PAYWALL_ON) {
+      const key = req.body?.license || req.get("x-license-key");
+      const lic = await validateLicenseCached(key);
+      if (!lic.valid) return res.status(402).json({ error: "구독이 필요해요.", needSubscription: true });
+    }
+
     const { compact } = req.body;
     const service = PROMPTS[req.body?.service] ? req.body.service : "saju";
     if (!compact || typeof compact !== "string") return res.status(400).json({ error: "풀이할 데이터가 없습니다." });
