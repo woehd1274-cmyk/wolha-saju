@@ -103,11 +103,21 @@ const COUPLE = {
 };
 let coupleMode = "gunghap";
 
+// 1인 서비스 (같은 입력 폼, 서비스만 다름)
+const SOLO = {
+  saju: { title: "🔮 사주 풀이", desc: "", chart: "사주 원국" },
+  daily: { title: "🗓️ 오늘의 운세", desc: "오늘 하루의 기운을 봐요. 매일 새로워요.", chart: "오늘의 사주" },
+  yearly: { title: "💘 올해의 연애운", desc: "올해 나의 연애·인연 흐름과 좋은 시기를 봐요.", chart: "올해의 흐름" },
+};
+let soloService = "saju";
+
 function hideResults() {
   chartPanel.hidden = true;
   readingPanel.hidden = true;
   chartEl.innerHTML = "";
   readingEl.innerHTML = "";
+  const sb = document.getElementById("share-btn");
+  if (sb) sb.hidden = true;
 }
 function showView(id) {
   document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== id));
@@ -122,7 +132,15 @@ document.querySelectorAll("[data-home]").forEach((b) => b.addEventListener("clic
 document.querySelectorAll(".svc-card").forEach((card) => {
   card.addEventListener("click", () => {
     const svc = card.dataset.service;
-    if (svc === "saju") { showView("view-saju"); return; }
+    if (SOLO[svc]) {
+      soloService = svc;
+      const s = SOLO[svc];
+      document.getElementById("solo-title").textContent = s.title;
+      const desc = document.getElementById("solo-desc");
+      desc.textContent = s.desc; desc.hidden = !s.desc;
+      showView("view-saju");
+      return;
+    }
     coupleMode = svc; // gunghap | jaehoe
     const c = COUPLE[svc];
     document.getElementById("couple-title").textContent = c.title;
@@ -231,6 +249,7 @@ async function runReading(compact, service) {
     if (!res.ok) throw new Error(d.error || "풀이에 실패했어요.");
     statusEl.className = "status"; statusEl.textContent = "";
     readingEl.innerHTML = d.html;
+    document.getElementById("share-btn").hidden = false;
   } catch (err) {
     statusEl.className = "status"; statusEl.textContent = "";
     showError(readingEl, err.message);
@@ -247,9 +266,28 @@ function withBusy(btn, busyText, fn) {
 }
 
 const sajuBtn = document.querySelector("#form-saju .submit-btn");
-document.getElementById("form-saju").addEventListener("submit", withBusy(sajuBtn, "사주 뽑는 중…", () =>
-  runFlow({ endpoint: "/api/saju", payload: collectPerson("s"), service: "saju", chartLabel: "사주 원국" })
+document.getElementById("form-saju").addEventListener("submit", withBusy(sajuBtn, "보는 중…", () =>
+  runFlow({ endpoint: "/api/saju", payload: collectPerson("s"), service: soloService, chartLabel: SOLO[soloService].chart })
 ));
+
+/* ---------- 결과 공유 ---------- */
+function toast(msg) {
+  let t = document.getElementById("toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+const shareBtn = document.getElementById("share-btn");
+shareBtn.addEventListener("click", async () => {
+  const url = location.origin;
+  const text = "월하에서 사주·연애운 봤어! 너도 봐봐 🌙";
+  if (navigator.share) {
+    try { await navigator.share({ title: "월하 · 연애·인연 사주", text, url }); } catch {}
+  } else {
+    try { await navigator.clipboard.writeText(url); toast("링크가 복사됐어요! 붙여넣기로 공유하세요 🌙"); }
+    catch { window.prompt("이 링크를 복사해 공유하세요:", url); }
+  }
+});
 
 const coupleBtn = document.getElementById("couple-submit");
 document.getElementById("form-couple").addEventListener("submit", withBusy(coupleBtn, "인연 살펴보는 중…", () =>

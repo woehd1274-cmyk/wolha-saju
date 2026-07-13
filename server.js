@@ -498,11 +498,42 @@ const JAEHOE_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻하고 �
   ## 나를 위한 한마디
 - 각 소제목은 2~4문장.`;
 
-const PROMPTS = { saju: SAJU_PROMPT, gunghap: GUNGHAP_PROMPT, jaehoe: JAEHOE_PROMPT };
+const DAILY_PROMPT = `당신은 '월하(月下)'라는 이름의 다정한 사주 상담가입니다.
+전달받은 사주와 '오늘의 일진(그날의 기운)'을 바탕으로, 오늘 하루의 운세를 산뜻하고 가볍게 알려줍니다.
+
+작성 규칙:
+- 존댓말로, 따뜻하고 짧게. 겁주지 말 것.
+- '오늘/올해 참고'에 있는 오늘 일진과 사주의 관계를 근거로, 철저히 '오늘 하루'에 집중.
+- 실천 가능한 작은 조언 위주. 전문 용어는 쉽게.
+- 마크다운 소제목:
+  ## 오늘의 한마디
+  ## 연애·인연
+  ## 일·컨디션
+  ## 오늘의 팁
+- 각 소제목은 2~3문장으로 짧게.`;
+
+const YEARLY_PROMPT = `당신은 '월하(月下)'라는 이름의 다정한 사주 상담가입니다.
+전달받은 사주와 '올해 세운(연운)'을 바탕으로, 올해의 연애·인연 흐름을 중심으로 풀이합니다.
+
+작성 규칙:
+- 존댓말로, 다정하게. 올해(현재 연도)에 집중하고 연애·인연을 중심으로.
+- 좋은 시기·조심할 시기를 월운 흐름을 참고로 부드럽게 제시(단정 금지).
+- 전문 용어는 쉽게 풀어서.
+- 마크다운 소제목:
+  ## 올해의 나, 한눈에
+  ## 올해의 연애·인연 흐름
+  ## 좋은 시기 · 조심할 시기
+  ## 올해를 잘 보내는 법
+  ## 다정한 한마디
+- 각 소제목은 2~4문장.`;
+
+const PROMPTS = { saju: SAJU_PROMPT, gunghap: GUNGHAP_PROMPT, jaehoe: JAEHOE_PROMPT, daily: DAILY_PROMPT, yearly: YEARLY_PROMPT };
 const USER_INTRO = {
   saju: "아래는 한 사람의 사주 명식(만세력 계산 결과)입니다. 규칙에 맞게 풀이해 주세요.",
   gunghap: "아래는 두 사람의 사주와 간이 궁합 계산 결과입니다. 규칙에 맞게 두 사람의 연인 궁합을 풀이해 주세요.",
   jaehoe: "아래는 헤어진 두 사람(사람A의 관점)의 사주와 관계 계산 결과입니다. 규칙에 맞게 재회 가능성을 풀이해 주세요.",
+  daily: "아래는 한 사람의 사주와 오늘 날짜의 만세력 정보입니다. 규칙에 맞게 오늘의 운세를 풀이해 주세요.",
+  yearly: "아래는 한 사람의 사주와 올해 세운 정보입니다. 규칙에 맞게 올해의 연애운과 흐름을 풀이해 주세요.",
 };
 
 /* ---------- 1) 사주 계산 (1인) ---------- */
@@ -513,7 +544,11 @@ app.post("/api/saju", (req, res) => {
       return res.status(400).json({ error: "생년월일(년/월/일)은 반드시 입력해야 합니다." });
     }
     const result = runSaju(input);
-    res.json({ chartHtml: renderChart(result, input), compact: result.toCompact() });
+    // 오늘의 운세·올해운을 위해 오늘/올해 만세력 정보를 압축본에 덧붙임
+    const ref = result.reference || {};
+    const codes = ref.codes || {};
+    const todayInfo = `\n\n# 오늘/올해 참고\n지금: ${ref.now || "-"}\n오늘 일진: ${codes.today || "-"} / 내일: ${codes.tomorrow || "-"}\n올해: ${codes.thisYear || "-"} / 이번달: ${codes.thisMonth || "-"}`;
+    res.json({ chartHtml: renderChart(result, input), compact: result.toCompact() + todayInfo });
   } catch (err) {
     console.error("[saju] 계산 오류:", err);
     res.status(500).json({ error: "사주 계산 중 문제가 생겼습니다. 입력값을 확인해 주세요." });

@@ -27,10 +27,21 @@
             <span class="svc-text"><b>재회 가능성</b><small>헤어진 그 사람과 다시 이어질 수 있을까 — 재회운과 유리한 시기까지</small><span class="hero-hook">⏱ 3분이면 확인 · 생년월일만 있으면 OK</span></span>
             <span class="svc-arrow">›</span>
           </button>
-          <div class="menu-sub">그 밖의 인연 보기</div>
+          <div class="menu-sub">연애·인연</div>
           <button class="svc-card" data-service="gunghap">
             <span class="svc-emoji">💞</span>
             <span class="svc-text"><b>연인 궁합</b><small>지금 그 사람과 얼마나 잘 맞을까</small></span>
+            <span class="svc-arrow">›</span>
+          </button>
+          <button class="svc-card" data-service="yearly">
+            <span class="svc-emoji">💘</span>
+            <span class="svc-text"><b>올해의 연애운</b><small>올해 나의 연애·인연 흐름과 좋은 시기</small></span>
+            <span class="svc-arrow">›</span>
+          </button>
+          <div class="menu-sub">매일 · 나</div>
+          <button class="svc-card" data-service="daily">
+            <span class="svc-emoji">🗓️</span>
+            <span class="svc-text"><b>오늘의 운세</b><small>오늘 하루의 기운 — 매일 새로워요</small></span>
             <span class="svc-arrow">›</span>
           </button>
           <button class="svc-card" data-service="saju">
@@ -44,7 +55,8 @@
       <!-- 사주 풀이 (1인) -->
       <section id="view-saju" class="view" hidden>
         <button class="back" data-home>← 홈으로</button>
-        <h2 class="view-title">🔮 사주 풀이</h2>
+        <h2 class="view-title" id="solo-title">🔮 사주 풀이</h2>
+        <p class="view-desc" id="solo-desc" hidden></p>
         <section class="panel">
           <form id="form-saju">
             <div data-person="s"></div>
@@ -83,6 +95,7 @@
         </div>
         <div class="status" id="reading-status"></div>
         <div class="reading" id="reading"></div>
+        <button type="button" class="share-btn" id="share-btn" hidden>🔗 친구에게 공유하기</button>
       </section>
 
       <footer class="foot">
