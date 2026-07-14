@@ -24,6 +24,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; } /* hidden 속성이 항상 확실히 숨기도록 (모달·필드 등) */
 
 body {
   margin: 0;
