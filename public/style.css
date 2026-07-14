@@ -269,6 +269,23 @@ button#submit-btn:disabled { opacity: .55; box-shadow: none; }
 .hero-hook { display: inline-block; margin-top: 9px; font-size: 11.5px; font-weight: 700; color: var(--amber); background: rgba(232,168,92,.12); border: 1px solid rgba(232,168,92,.32); border-radius: 999px; padding: 3px 10px; }
 .menu-sub { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--ink-soft); margin: 14px 2px 2px; }
 
+/* 데일리 강조 카드 (오늘의 운세 — 매일 재방문 유도) */
+.svc-card.daily-feature {
+  position: relative; margin-top: 10px;
+  background: linear-gradient(150deg, rgba(79,179,163,.18), rgba(63,116,184,.05) 60%, var(--surface));
+  border-color: #3f8f83;
+  box-shadow: 0 12px 30px rgba(79,179,163,.14);
+}
+.svc-card.daily-feature .svc-emoji { animation: bob 2.6s ease-in-out infinite; }
+.svc-card.daily-feature .svc-arrow { color: #63c9b7; }
+.daily-badge {
+  position: absolute; top: 12px; right: 14px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: .3px; color: #06231e;
+  background: linear-gradient(180deg, #63c9b7, #3f9f8f);
+  padding: 3px 9px; border-radius: 999px;
+}
+@keyframes bob { 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(-3px); } }
+
 @keyframes flicker {
   0%, 100% { transform: translateY(0) rotate(-1.5deg); filter: drop-shadow(0 0 10px rgba(232,168,92,.5)); }
   50% { transform: translateY(-1px) rotate(1.5deg); filter: drop-shadow(0 0 18px rgba(232,168,92,.85)); }

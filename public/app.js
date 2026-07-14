@@ -71,6 +71,12 @@ document.querySelector('#form-saju [data-person="s"]').innerHTML = personFormHtm
 document.querySelector('#form-couple [data-person="a"]').innerHTML = personFormHtml("a", "🙋 나의 정보");
 document.querySelector('#form-couple [data-person="b"]').innerHTML = personFormHtml("b", "💌 상대의 정보");
 
+// 데일리 카드에 오늘 날짜 표시 (매일 새로워지는 느낌 강조 → 재방문 유도)
+(() => {
+  const b = document.getElementById("daily-badge");
+  if (b) { const d = new Date(); b.textContent = `오늘 ${d.getMonth() + 1}.${d.getDate()}`; }
+})();
+
 /* ---------- 폼 상호작용(위임) ---------- */
 document.addEventListener("change", (e) => {
   const t = e.target;
