@@ -39,6 +39,11 @@ const LS_CHECKOUT_URL = process.env.LEMONSQUEEZY_CHECKOUT_URL || "";
 const PAYWALL_ON = !!LS_CHECKOUT_URL;
 // 주인 키: 이 비밀 코드를 라이선스 칸에 넣으면 결제 없이 항상 잠금 해제 (운영자·지인 무료 이용)
 const OWNER_KEY = process.env.OWNER_KEY || "";
+// 첫 1회 무료 체험 (IP당). 서버 재시작 시 초기화됨.
+const FREE_TRIAL_COUNT = Number(process.env.FREE_TRIAL_COUNT || 1);
+const freeTrialUsed = new Map(); // ip -> 사용횟수
+// 간단 방문 통계 (메모리 — 재배포 시 초기화)
+const stats = { visits: 0, readings: {}, subscribersUnlocked: 0, since: new Date().toISOString() };
 
 app.use(express.json({ limit: "64kb" }));
 app.set("trust proxy", 1); // 배포(프록시) 환경에서 실제 접속자 IP 인식
@@ -633,7 +638,8 @@ async function generateReading(systemPrompt, userPrompt) {
 
 /* ---------- 앱 설정 / 구독 확인 ---------- */
 app.get("/api/config", (req, res) => {
-  res.json({ paywall: PAYWALL_ON, checkoutUrl: LS_CHECKOUT_URL });
+  stats.visits++;
+  res.json({ paywall: PAYWALL_ON, checkoutUrl: LS_CHECKOUT_URL, freeTrial: FREE_TRIAL_COUNT });
 });
 
 app.post("/api/license/validate", async (req, res) => {
@@ -641,18 +647,35 @@ app.post("/api/license/validate", async (req, res) => {
   res.json({ valid: r.valid, status: r.status || null });
 });
 
+// 운영자 전용 방문 통계 (주인 키로 접근)
+app.get("/api/stats", (req, res) => {
+  if (!OWNER_KEY || req.query.key !== OWNER_KEY) return res.status(403).json({ error: "권한 없음" });
+  const totalReadings = Object.values(stats.readings).reduce((a, b) => a + b, 0);
+  res.json({ ...stats, totalReadings, freeTrialIPs: freeTrialUsed.size });
+});
+
 /* ---------- 3) AI 풀이 (서비스별 프롬프트 · 요청 제한 · 구독 게이트) ---------- */
 app.post("/api/interpret", interpretLimiter, async (req, res) => {
   try {
-    // 구독 잠금이 켜져 있으면 유효한 라이선스가 있어야 풀이 제공
+    const service = PROMPTS[req.body?.service] ? req.body.service : "saju";
+
+    // 구독 잠금: 유효 라이선스/주인 키가 있거나, 무료 체험(IP당 1회)이 남았으면 통과
     if (PAYWALL_ON) {
       const key = req.body?.license || req.get("x-license-key");
       const lic = await validateLicenseCached(key);
-      if (!lic.valid) return res.status(402).json({ error: "구독이 필요해요.", needSubscription: true });
+      if (lic.valid) {
+        stats.subscribersUnlocked++;
+      } else {
+        const ip = req.ip || "unknown";
+        const used = freeTrialUsed.get(ip) || 0;
+        if (used >= FREE_TRIAL_COUNT) {
+          return res.status(402).json({ error: "구독이 필요해요.", needSubscription: true, trialExhausted: true });
+        }
+        freeTrialUsed.set(ip, used + 1); // 무료 체험 1회 소진
+      }
     }
 
     const { compact } = req.body;
-    const service = PROMPTS[req.body?.service] ? req.body.service : "saju";
     if (!compact || typeof compact !== "string") return res.status(400).json({ error: "풀이할 데이터가 없습니다." });
     if (compact.length > 6000) return res.status(400).json({ error: "요청 데이터가 너무 큽니다." });
 
@@ -660,6 +683,7 @@ app.post("/api/interpret", interpretLimiter, async (req, res) => {
     const text = await generateReading(PROMPTS[service], userPrompt);
 
     if (!text) return res.status(502).json({ error: "AI 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요." });
+    stats.readings[service] = (stats.readings[service] || 0) + 1; // 서비스별 통계
     res.json({ html: marked.parse(text), markdown: text });
   } catch (err) {
     console.error("[interpret] 풀이 오류:", err);

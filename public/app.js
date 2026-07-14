@@ -248,7 +248,10 @@ async function runReading(compact, service) {
     if (res.status === 402 || d.needSubscription) {
       pendingReading = { compact, service };
       statusEl.className = "status"; statusEl.textContent = "";
-      readingEl.innerHTML = '<div class="lock-note">🔒 AI 풀이는 구독자 전용이에요.<br>아래에서 구독하거나, 이미 구독했다면 라이선스 키를 넣으면 바로 열려요.</div>';
+      const note = d.trialExhausted
+        ? '🎁 무료 체험(첫 1회)을 다 보셨어요!<br>계속 보려면 아래에서 구독하거나, 이미 구독했다면 라이선스 키를 넣어주세요.'
+        : '🔒 AI 풀이는 구독자 전용이에요.<br>아래에서 구독하거나, 이미 구독했다면 라이선스 키를 넣으면 바로 열려요.';
+      readingEl.innerHTML = `<div class="lock-note">${note}</div>`;
       showPaywall();
       return;
     }
