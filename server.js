@@ -37,6 +37,8 @@ const anthropic = USE_API_KEY ? new Anthropic() : null;
 // 설정 전에는 잠금이 꺼져 있어 누구나 무료로 사용(=지금 상태 유지).
 const LS_CHECKOUT_URL = process.env.LEMONSQUEEZY_CHECKOUT_URL || "";
 const PAYWALL_ON = !!LS_CHECKOUT_URL;
+// 주인 키: 이 비밀 코드를 라이선스 칸에 넣으면 결제 없이 항상 잠금 해제 (운영자·지인 무료 이용)
+const OWNER_KEY = process.env.OWNER_KEY || "";
 
 app.use(express.json({ limit: "64kb" }));
 app.set("trust proxy", 1); // 배포(프록시) 환경에서 실제 접속자 IP 인식
@@ -584,6 +586,7 @@ const licCache = new Map(); // key -> { valid, status, exp }
 
 async function validateLicense(key) {
   if (!key || typeof key !== "string" || key.length < 8 || key.length > 200) return { valid: false };
+  if (OWNER_KEY && key.trim() === OWNER_KEY) return { valid: true, status: "owner" }; // 주인 키 — 결제 없이 통과
   try {
     const resp = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
       method: "POST",
