@@ -240,7 +240,8 @@ async function runReading(compact, service) {
   readingPanel.hidden = false;
   readingEl.innerHTML = SKELETON;
   statusEl.className = "status loading";
-  statusEl.textContent = "월하가 풀이하는 중이에요";
+  statusEl.textContent = "월하가 풀이하는 중이에요 (약 30초 걸려요)";
+  readingPanel.scrollIntoView({ behavior: "smooth", block: "start" }); // 로딩 화면으로 이동 → 기다리는 중임을 보이게
   try {
     const res = await fetch("/api/interpret", {
       method: "POST",
