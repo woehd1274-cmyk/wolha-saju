@@ -128,6 +128,8 @@ function hideResults() {
 function showView(id) {
   document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== id));
   hideResults();
+  const pw = document.getElementById("paywall");
+  if (pw) pw.hidden = true; // 뷰 이동 시 열려있던 구독 팝업 닫기
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function goHome() { showView("view-home"); }
@@ -224,6 +226,7 @@ document.getElementById("license-check").addEventListener("click", async () => {
       setTimeout(() => {
         hidePaywall();
         if (pendingReading) { const p = pendingReading; pendingReading = null; runReading(p.compact, p.service); }
+        else { toast("이제 이용하실 수 있어요! 서비스를 골라 풀이를 받아보세요 🌙"); }
       }, 700);
     } else {
       msg.textContent = "❌ 유효하지 않은 키예요. (구독이 만료됐거나 오타일 수 있어요)"; msg.className = "license-msg err";
