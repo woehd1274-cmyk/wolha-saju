@@ -77,6 +77,17 @@ document.querySelector('#form-couple [data-person="b"]').innerHTML = personFormH
   if (b) { const d = new Date(); b.textContent = `오늘 ${d.getMonth() + 1}.${d.getDate()}`; }
 })();
 
+// 전용 링크(?key=...)로 열면 키를 자동 저장 (운영자·지인 북마크용 — 매번 입력 불필요)
+(() => {
+  const p = new URLSearchParams(location.search);
+  const k = p.get("key") || p.get("owner");
+  if (k) {
+    localStorage.setItem("wolha_license", k.trim());
+    history.replaceState({}, "", location.pathname); // 주소창에서 키 숨김
+    setTimeout(() => { try { toast("이용 준비 완료! 서비스를 골라 풀이를 받아보세요 🌙"); } catch {} }, 300);
+  }
+})();
+
 /* ---------- 폼 상호작용(위임) ---------- */
 document.addEventListener("change", (e) => {
   const t = e.target;

@@ -591,7 +591,7 @@ const licCache = new Map(); // key -> { valid, status, exp }
 
 async function validateLicense(key) {
   if (!key || typeof key !== "string" || key.length < 8 || key.length > 200) return { valid: false };
-  if (OWNER_KEY && key.trim() === OWNER_KEY) return { valid: true, status: "owner" }; // 주인 키 — 결제 없이 통과
+  if (OWNER_KEY && key.trim().toLowerCase() === OWNER_KEY.toLowerCase()) return { valid: true, status: "owner" }; // 주인 키 — 결제 없이 통과 (대소문자 무시)
   try {
     const resp = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
       method: "POST",
