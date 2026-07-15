@@ -151,6 +151,7 @@ document.querySelectorAll("[data-home]").forEach((b) => b.addEventListener("clic
 document.querySelectorAll(".svc-card").forEach((card) => {
   card.addEventListener("click", () => {
     const svc = card.dataset.service;
+    if (svc === "tarot") { showView("view-tarot"); return; }
     if (SOLO[svc]) {
       soloService = svc;
       const s = SOLO[svc];
@@ -321,4 +322,9 @@ document.getElementById("form-couple").addEventListener("submit", withBusy(coupl
     service: coupleMode,
     chartLabel: COUPLE[coupleMode].chart,
   })
+));
+
+const tarotBtn = document.querySelector("#form-tarot .submit-btn");
+document.getElementById("form-tarot").addEventListener("submit", withBusy(tarotBtn, "카드 뽑는 중…", () =>
+  runFlow({ endpoint: "/api/tarot", payload: { question: document.getElementById("tarot-q").value.trim() }, service: "tarot", chartLabel: "뽑힌 카드" })
 ));

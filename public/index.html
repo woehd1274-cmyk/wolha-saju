@@ -45,6 +45,11 @@
             <span class="svc-text"><b>올해의 연애운</b><small>올해 나의 연애·인연 흐름과 좋은 시기</small></span>
             <span class="svc-arrow">›</span>
           </button>
+          <button class="svc-card" data-service="tarot">
+            <span class="svc-emoji">🃏</span>
+            <span class="svc-text"><b>타로 풀이</b><small>카드로 보는 지금의 연애·인연 흐름</small></span>
+            <span class="svc-arrow">›</span>
+          </button>
           <div class="menu-sub">나</div>
           <button class="svc-card" data-service="saju">
             <span class="svc-emoji">🔮</span>
@@ -78,6 +83,22 @@
             <div class="heart-divider"><span id="couple-heart">💞</span></div>
             <div class="person-block" data-person="b"></div>
             <button type="submit" class="submit-btn" id="couple-submit">궁합 보기</button>
+          </form>
+        </section>
+      </section>
+
+      <!-- 타로 풀이 -->
+      <section id="view-tarot" class="view" hidden>
+        <button class="back" data-home>← 홈으로</button>
+        <h2 class="view-title">🃏 타로 풀이</h2>
+        <p class="view-desc">궁금한 걸 마음속에 떠올리며 카드를 뽑아보세요.</p>
+        <section class="panel">
+          <form id="form-tarot">
+            <div class="fld">
+              <label for="tarot-q">무엇이 궁금하세요? <small>(선택)</small></label>
+              <input type="text" id="tarot-q" maxlength="100" placeholder="예: 그 사람과 우리, 앞으로 어떻게 될까요?" />
+            </div>
+            <button type="submit" class="submit-btn">🃏 카드 뽑기</button>
           </form>
         </section>
       </section>

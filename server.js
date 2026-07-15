@@ -451,6 +451,45 @@ ${rB.toCompact()}
 ${facts}${extra}`;
 }
 
+/* ---------- 타로 (메이저 아르카나 22장 · 3장 스프레드) ---------- */
+const TAROT_DECK = [
+  { ko: "바보", en: "The Fool", emoji: "🎒" }, { ko: "마법사", en: "The Magician", emoji: "🎩" },
+  { ko: "여사제", en: "The High Priestess", emoji: "🌙" }, { ko: "여황제", en: "The Empress", emoji: "👑" },
+  { ko: "황제", en: "The Emperor", emoji: "🏛️" }, { ko: "교황", en: "The Hierophant", emoji: "📿" },
+  { ko: "연인", en: "The Lovers", emoji: "💕" }, { ko: "전차", en: "The Chariot", emoji: "🛞" },
+  { ko: "힘", en: "Strength", emoji: "🦁" }, { ko: "은둔자", en: "The Hermit", emoji: "🏮" },
+  { ko: "운명의 수레바퀴", en: "Wheel of Fortune", emoji: "☸️" }, { ko: "정의", en: "Justice", emoji: "⚖️" },
+  { ko: "매달린 사람", en: "The Hanged Man", emoji: "🙃" }, { ko: "죽음", en: "Death", emoji: "🦋" },
+  { ko: "절제", en: "Temperance", emoji: "🍶" }, { ko: "악마", en: "The Devil", emoji: "😈" },
+  { ko: "탑", en: "The Tower", emoji: "🗼" }, { ko: "별", en: "The Star", emoji: "⭐" },
+  { ko: "달", en: "The Moon", emoji: "🌕" }, { ko: "태양", en: "The Sun", emoji: "☀️" },
+  { ko: "심판", en: "Judgement", emoji: "🎺" }, { ko: "세계", en: "The World", emoji: "🌍" },
+];
+const TAROT_POSITIONS = ["과거 · 그동안의 흐름", "현재 · 지금의 상황", "미래 · 앞으로의 흐름"];
+
+function drawTarot() {
+  const idx = [...Array(TAROT_DECK.length).keys()];
+  for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+  return idx.slice(0, 3).map((i) => ({ ...TAROT_DECK[i], reversed: Math.random() < 0.5 }));
+}
+
+function renderTarot(question, cards) {
+  const q = question ? `<div class="tarot-q">🔮 “${esc(question)}”</div>` : "";
+  const cardsHtml = cards.map((c, i) => `
+    <div class="tarot-card${c.reversed ? " rev" : ""}">
+      <div class="tarot-pos">${TAROT_POSITIONS[i]}</div>
+      <div class="tarot-emoji">${c.emoji}</div>
+      <div class="tarot-name">${esc(c.ko)}</div>
+      <div class="tarot-orient">${c.reversed ? "역방향" : "정방향"}</div>
+    </div>`).join("");
+  return `${q}<div class="tarot-spread">${cardsHtml}</div>`;
+}
+
+function tarotCompact(question, cards) {
+  const lines = cards.map((c, i) => `${TAROT_POSITIONS[i]}: ${c.ko}(${c.en}) ${c.reversed ? "역방향" : "정방향"}`).join("\n");
+  return `# 질문\n${question || "(연애·인연 전반)"}\n\n# 뽑힌 타로 카드 (3장 스프레드)\n${lines}`;
+}
+
 /* ---------- 페르소나(시스템 프롬프트) ---------- */
 const SAJU_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻하고 다정한 사주 상담가입니다.
 달빛 아래에서 조용히 이야기를 건네듯, 전달받은 사주 명식(만세력 계산 결과)을 바탕으로
@@ -534,13 +573,29 @@ const YEARLY_PROMPT = `당신은 '월하(月下)'라는 이름의 다정한 사�
   ## 다정한 한마디
 - 각 소제목은 2~4문장.`;
 
-const PROMPTS = { saju: SAJU_PROMPT, gunghap: GUNGHAP_PROMPT, jaehoe: JAEHOE_PROMPT, daily: DAILY_PROMPT, yearly: YEARLY_PROMPT };
+const TAROT_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 타로 리더입니다.
+전달받은 질문과 뽑힌 타로 카드 3장(과거·현재·미래)을 바탕으로 다정하게 풀이합니다.
+
+작성 규칙:
+- 존댓말로, 따뜻하고 희망적이되 솔직하게. 겁주거나 단정하지 말 것.
+- 각 카드의 의미(정방향/역방향)를 질문과 연결해 이야기로 풀어낼 것.
+- 연애·인연 관점을 자연스럽게 곁들이되 질문에 맞게.
+- 마크다운으로 작성하고, 아래 순서의 소제목을 사용:
+  ## 카드가 전하는 한마디
+  ## 과거 · 그동안의 흐름
+  ## 현재 · 지금의 상황
+  ## 미래 · 앞으로의 흐름
+  ## 다정한 조언
+- 각 소제목은 2~4문장.`;
+
+const PROMPTS = { saju: SAJU_PROMPT, gunghap: GUNGHAP_PROMPT, jaehoe: JAEHOE_PROMPT, daily: DAILY_PROMPT, yearly: YEARLY_PROMPT, tarot: TAROT_PROMPT };
 const USER_INTRO = {
   saju: "아래는 한 사람의 사주 명식(만세력 계산 결과)입니다. 규칙에 맞게 풀이해 주세요.",
   gunghap: "아래는 두 사람의 사주와 간이 궁합 계산 결과입니다. 규칙에 맞게 두 사람의 연인 궁합을 풀이해 주세요.",
   jaehoe: "아래는 헤어진 두 사람(사람A의 관점)의 사주와 관계 계산 결과입니다. 규칙에 맞게 재회 가능성을 풀이해 주세요.",
   daily: "아래는 한 사람의 사주와 오늘 날짜의 만세력 정보입니다. 규칙에 맞게 오늘의 운세를 풀이해 주세요.",
   yearly: "아래는 한 사람의 사주와 올해 세운 정보입니다. 규칙에 맞게 올해의 연애운과 흐름을 풀이해 주세요.",
+  tarot: "아래는 질문과 뽑힌 타로 카드 3장입니다. 규칙에 맞게 타로 풀이를 해 주세요.",
 };
 
 /* ---------- 1) 사주 계산 (1인) ---------- */
@@ -652,6 +707,18 @@ app.get("/api/stats", (req, res) => {
   if (!OWNER_KEY || req.query.key !== OWNER_KEY) return res.status(403).json({ error: "권한 없음" });
   const totalReadings = Object.values(stats.readings).reduce((a, b) => a + b, 0);
   res.json({ ...stats, totalReadings, freeTrialIPs: freeTrialUsed.size });
+});
+
+/* ---------- 타로: 카드 뽑기 ---------- */
+app.post("/api/tarot", (req, res) => {
+  try {
+    const question = (req.body?.question || "").slice(0, 120);
+    const cards = drawTarot();
+    res.json({ chartHtml: renderTarot(question, cards), compact: tarotCompact(question, cards) });
+  } catch (err) {
+    console.error("[tarot] 오류:", err);
+    res.status(500).json({ error: "카드를 뽑는 중 문제가 생겼습니다." });
+  }
 });
 
 /* ---------- 3) AI 풀이 (서비스별 프롬프트 · 요청 제한 · 구독 게이트) ---------- */
