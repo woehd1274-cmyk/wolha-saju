@@ -730,7 +730,7 @@ async function generateReading(systemPrompt, userPrompt) {
   if (USE_API_KEY) {
     const msg = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: 2500,
+      max_tokens: 4000, // 종합 사주(8개 섹션) 등 긴 풀이가 잘리지 않도록
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
