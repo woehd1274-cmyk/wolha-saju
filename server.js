@@ -195,6 +195,8 @@ function renderChart(r, input) {
       <div class="sum-item"><span>용신</span><b>${esc((a.yongsin || []).join(" "))}</b></div>
     </div>
 
+    <div class="basis-note">🔎 <b>이 풀이의 근거</b> — 아래 <b>일간·오행 분포·대운·세운</b>을 종합해 분석했어요. 결과만이 아니라 ‘왜 그런지’도 함께 봐 주세요.</div>
+
     <h3 class="sec">사주 명식</h3>
     ${myeongsikGrid(r, false, false)}
 
@@ -273,7 +275,8 @@ const BRANCH_POS = [
   { key: "hour", name: "시지", note: "미래·마음 자리", needHour: true, w: { yukhap: 8, samhap: 5, chung: -8, hyeong: -5, hae: -3 } },
 ];
 
-function computeRelationship(rA, rB, mA, mB) {
+function computeRelationship(rA, rB, mA, mB, mode) {
+  const isLove = mode !== "friend" && mode !== "family"; // 연애 계열만 배우자 인연 반영
   const aDay = rA.pillarDetails.day, bDay = rB.pillarDetails.day;
   const aStem = aDay.stem, bStem = bDay.stem;
   const aStemEl = STEM_EL[aStem], bStemEl = STEM_EL[bStem];
@@ -314,14 +317,16 @@ function computeRelationship(rA, rB, mA, mB) {
   if (aDay.yinYang.stem !== bDay.yinYang.stem) add(8, "음양 조화", "음(陰)과 양(陽)이 어우러져 균형이 좋아요.");
   else add(0, "같은 음양", "두 사람의 음양이 같아, 비슷한 만큼 부딪힐 수도 있어요.");
 
-  // 배우자 인연성 (서로의 일간이 상대에게 어떤 십성인가)
-  const nameA = mA?.name || "A", nameB = mB?.name || "B";
-  const aToB = tenGodOf(aStem, bStem); // A가 볼 때 상대 B의 십성
-  const bToA = tenGodOf(bStem, aStem); // B가 볼 때 상대 A의 십성
-  const pA = spouseStarPoints(mA?.gender === "여" ? "여" : "남", aToB);
-  const pB = spouseStarPoints(mB?.gender === "여" ? "여" : "남", bToA);
-  if (pA) add(pA, `배우자 인연 · ${esc(nameA)}`, `${esc(nameA)}에게 ${esc(nameB)}은(는) ${aToB} — ${pA >= 10 ? "안정적인" : "인연이 되는"} 배우자 자리의 기운이에요.`);
-  if (pB) add(pB, `배우자 인연 · ${esc(nameB)}`, `${esc(nameB)}에게 ${esc(nameA)}은(는) ${bToA} — ${pB >= 10 ? "안정적인" : "인연이 되는"} 배우자 자리의 기운이에요.`);
+  // 배우자 인연성 (서로의 일간이 상대에게 어떤 십성인가) — 연애 계열에서만
+  if (isLove) {
+    const nameA = mA?.name || "A", nameB = mB?.name || "B";
+    const aToB = tenGodOf(aStem, bStem); // A가 볼 때 상대 B의 십성
+    const bToA = tenGodOf(bStem, aStem); // B가 볼 때 상대 A의 십성
+    const pA = spouseStarPoints(mA?.gender === "여" ? "여" : "남", aToB);
+    const pB = spouseStarPoints(mB?.gender === "여" ? "여" : "남", bToA);
+    if (pA) add(pA, `배우자 인연 · ${esc(nameA)}`, `${esc(nameA)}에게 ${esc(nameB)}은(는) ${aToB} — ${pA >= 10 ? "안정적인" : "인연이 되는"} 배우자 자리의 기운이에요.`);
+    if (pB) add(pB, `배우자 인연 · ${esc(nameB)}`, `${esc(nameB)}에게 ${esc(nameA)}은(는) ${bToA} — ${pB >= 10 ? "안정적인" : "인연이 되는"} 배우자 자리의 기운이에요.`);
+  }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
   const oneLine =
@@ -390,7 +395,7 @@ function personCard(r, m) {
 
 function renderCompat(rA, rB, rel, mA, mB, mode, years) {
   const isJ = mode === "jaehoe";
-  const title = isJ ? "재회 인연 지수" : "인연 지수";
+  const title = { jaehoe: "재회 인연 지수", gunghap: "인연 지수", friend: "우정 지수", family: "가족 인연 지수" }[mode] || "인연 지수";
   const nameA = mA.name || "그대", nameB = mB.name || "그 사람";
   const banner = isJ
     ? `<div class="jaehoe-banner">🕯️ ${esc(nameA)} 님과 ${esc(nameB)} 님,<br>다시 이어질 수 있을까요?</div>`
@@ -491,23 +496,27 @@ function tarotCompact(question, cards) {
 }
 
 /* ---------- 페르소나(시스템 프롬프트) ---------- */
-const SAJU_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻하고 다정한 사주 상담가입니다.
-달빛 아래에서 조용히 이야기를 건네듯, 전달받은 사주 명식(만세력 계산 결과)을 바탕으로
-사주를 잘 모르는 사람도 편안하게 읽을 수 있도록 친근한 요약형으로 풀이합니다.
+const SAJU_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 'AI 인생 파트너'입니다.
+전달받은 사주 명식(만세력 계산 결과)을 바탕으로 성향·운의 흐름·강점과 약점을 종합적으로
+분석하고, '지금 더 나은 선택'을 돕는 실용적인 조언까지 건넵니다.
 
-작성 규칙:
-- 존댓말로, 다정하고 담백하게. 겁주거나 단정하지 말 것.
-- 전문 용어(오행, 십성, 대운 등)가 나오면 반드시 쉬운 말로 한 번 풀어서 설명.
-- 사주는 '정해진 운명'이 아니라 '타고난 기질과 흐름의 참고'라는 태도를 유지.
-- 건강/재물/수명에 대한 단정적 예언이나 공포 조장은 하지 말 것.
-- 마크다운으로 작성하고, 아래 순서의 소제목을 사용:
+가장 중요한 태도:
+- 사주는 '정해진 운명'이 아니라 '타고난 기질과 흐름의 참고'입니다. 운명을 단정하지 말 것.
+- 결과만 나열하지 말고, 왜 그런지(일간·오행·대운 등)를 쉬운 말로 근거와 함께 설명.
+- 예언보다 '그래서 지금 무엇을 하면 좋은지' 실천 가능한 조언에 무게를 둘 것.
+- 건강/재물/수명에 대한 공포 조장·단정적 예언은 하지 말 것.
+
+작성 규칙(마크다운, 아래 순서의 소제목을 사용):
   ## 한눈에 보는 나
-  ## 타고난 기질과 성격
-  ## 강점
-  ## 조심하면 좋은 점
+  ## 타고난 성격·기질
+  ## 재물운
+  ## 직업·사업운
+  ## 연애·인연
+  ## 강점과 약점
   ## 삶의 큰 흐름 (대운)
-  ## 다정한 한마디
-- 전체 길이는 편하게 읽을 수 있도록 적당히. 각 소제목은 2~4문장.`;
+  ## 지금의 실행 전략
+- '지금의 실행 전략'에는 일·공부·인간관계·건강·돈 관리 중 지금 도움이 될 구체적 행동을 2~4가지 제안.
+- 전문 용어는 쉬운 말로 풀고, 각 소제목은 2~4문장으로.`;
 
 const GUNGHAP_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 사주 상담가입니다.
 전달받은 두 사람의 사주와 '간이 궁합 점수'를 바탕으로 연인 궁합을 다정하고 담백하게 풀이합니다.
@@ -554,8 +563,9 @@ const DAILY_PROMPT = `당신은 '월하(月下)'라는 이름의 다정한 사�
 - 마크다운 소제목:
   ## 오늘의 한마디
   ## 연애·인연
-  ## 일·컨디션
-  ## 오늘의 팁
+  ## 일·컨디션·돈
+  ## 오늘의 실행 전략
+- '오늘의 실행 전략'에는 오늘 하기 좋은 일 / 조심하면 좋은 것을 구체적으로 1~3가지.
 - 각 소제목은 2~3문장으로 짧게.`;
 
 const YEARLY_PROMPT = `당신은 '월하(月下)'라는 이름의 다정한 사주 상담가입니다.
@@ -588,7 +598,49 @@ const TAROT_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 타�
   ## 다정한 조언
 - 각 소제목은 2~4문장.`;
 
-const PROMPTS = { saju: SAJU_PROMPT, gunghap: GUNGHAP_PROMPT, jaehoe: JAEHOE_PROMPT, daily: DAILY_PROMPT, yearly: YEARLY_PROMPT, tarot: TAROT_PROMPT };
+const FRIEND_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 사주 상담가입니다.
+전달받은 두 사람의 사주와 관계 계산 결과를 바탕으로 '두 사람의 우정 궁합'을 풀이합니다.
+
+작성 규칙:
+- 존댓말로, 따뜻하게. 점수는 참고일 뿐 단정하지 말 것. 연애가 아니라 '친구·동료 관계' 관점.
+- 전문 용어는 쉬운 말로 풀 것. 계산된 관계 요인을 근거로 삼되 사람 이야기로 옮길 것.
+- 마크다운 소제목:
+  ## 두 사람, 한눈에
+  ## 잘 통하는 점
+  ## 부딪히기 쉬운 점
+  ## 오래 좋은 친구가 되려면
+  ## 다정한 한마디
+- 각 소제목은 2~4문장.`;
+
+const FAMILY_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 사주 상담가입니다.
+전달받은 두 사람의 사주와 관계 계산 결과를 바탕으로 '가족(부모·자녀·형제 등) 인연 궁합'을 풀이합니다.
+
+작성 규칙:
+- 존댓말로, 따뜻하게. 점수는 참고일 뿐 단정하지 말 것. '가족·혈연 관계'로서의 조화 관점.
+- 전문 용어는 쉬운 말로 풀 것. 계산된 관계 요인을 근거로 삼되 사람 이야기로 옮길 것.
+- 마크다운 소제목:
+  ## 두 사람, 한눈에
+  ## 잘 맞는 점
+  ## 서로 이해가 필요한 점
+  ## 관계를 따뜻하게 하는 법
+  ## 다정한 한마디
+- 각 소제목은 2~4문장.`;
+
+const CONSULT_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 'AI 인생 파트너' 상담가입니다.
+전달받은 한 사람의 사주 명식과 '상담 질문'을 바탕으로, 그 사람의 고민에 맞춤 조언을 드립니다.
+
+작성 규칙:
+- 존댓말로, 다정하고 현실적으로. 사주는 '정해진 운명'이 아니라 참고이며, 운명을 단정하지 말 것.
+- 질문(연애·직업·재물·인간관계·선택 등 무엇이든)에 사주의 기질·흐름을 근거로 삼아 답할 것.
+- 예언보다 '그래서 지금 무엇을 하면 좋은지' 실천 가능한 조언을 반드시 포함.
+- 마크다운 소제목:
+  ## 질문에 대한 답
+  ## 사주로 본 이유
+  ## 지금의 실행 전략
+  ## 다정한 한마디
+- 각 소제목은 2~4문장.`;
+
+const PROMPTS = { saju: SAJU_PROMPT, gunghap: GUNGHAP_PROMPT, jaehoe: JAEHOE_PROMPT, daily: DAILY_PROMPT, yearly: YEARLY_PROMPT, tarot: TAROT_PROMPT, friend: FRIEND_PROMPT, family: FAMILY_PROMPT, consult: CONSULT_PROMPT };
 const USER_INTRO = {
   saju: "아래는 한 사람의 사주 명식(만세력 계산 결과)입니다. 규칙에 맞게 풀이해 주세요.",
   gunghap: "아래는 두 사람의 사주와 간이 궁합 계산 결과입니다. 규칙에 맞게 두 사람의 연인 궁합을 풀이해 주세요.",
@@ -596,6 +648,9 @@ const USER_INTRO = {
   daily: "아래는 한 사람의 사주와 오늘 날짜의 만세력 정보입니다. 규칙에 맞게 오늘의 운세를 풀이해 주세요.",
   yearly: "아래는 한 사람의 사주와 올해 세운 정보입니다. 규칙에 맞게 올해의 연애운과 흐름을 풀이해 주세요.",
   tarot: "아래는 질문과 뽑힌 타로 카드 3장입니다. 규칙에 맞게 타로 풀이를 해 주세요.",
+  friend: "아래는 두 사람의 사주와 간이 궁합 계산 결과입니다. 규칙에 맞게 두 사람의 우정 궁합을 풀이해 주세요.",
+  family: "아래는 두 사람의 사주와 간이 궁합 계산 결과입니다. 규칙에 맞게 두 사람의 가족 인연 궁합을 풀이해 주세요.",
+  consult: "아래는 한 사람의 사주와 상담 질문입니다. 규칙에 맞게 맞춤 상담을 해 주세요.",
 };
 
 /* ---------- 1) 사주 계산 (1인) ---------- */
@@ -620,7 +675,7 @@ app.post("/api/saju", (req, res) => {
 /* ---------- 2) 궁합 / 재회 (2인) ---------- */
 app.post("/api/compat", (req, res) => {
   try {
-    const mode = req.body?.mode === "jaehoe" ? "jaehoe" : "gunghap";
+    const mode = ["jaehoe", "gunghap", "friend", "family"].includes(req.body?.mode) ? req.body.mode : "gunghap";
     const mA = normalizeInput(req.body?.personA);
     const mB = normalizeInput(req.body?.personB);
     if (!mA.year || !mA.month || !mA.day || !mB.year || !mB.month || !mB.day) {
@@ -628,7 +683,7 @@ app.post("/api/compat", (req, res) => {
     }
     const rA = runSaju(mA);
     const rB = runSaju(mB);
-    const rel = computeRelationship(rA, rB, mA, mB);
+    const rel = computeRelationship(rA, rB, mA, mB, mode);
     const years = mode === "jaehoe" ? favorableYears(rA, mA) : null;
     res.json({
       chartHtml: renderCompat(rA, rB, rel, mA, mB, mode, years),
@@ -718,6 +773,23 @@ app.post("/api/tarot", (req, res) => {
   } catch (err) {
     console.error("[tarot] 오류:", err);
     res.status(500).json({ error: "카드를 뽑는 중 문제가 생겼습니다." });
+  }
+});
+
+/* ---------- AI 상담: 생년월일 + 질문 ---------- */
+app.post("/api/consult", (req, res) => {
+  try {
+    const input = normalizeInput(req.body);
+    const question = (req.body?.question || "").slice(0, 200);
+    if (!input.year || !input.month || !input.day) return res.status(400).json({ error: "생년월일을 입력해 주세요." });
+    if (!question) return res.status(400).json({ error: "상담할 질문을 입력해 주세요." });
+    const result = runSaju(input);
+    const chartHtml = `<div class="consult-q">💬 “${esc(question)}”</div>` + renderChart(result, input);
+    const compact = `# 상담 질문\n${question}\n\n# 사주\n${result.toCompact()}`;
+    res.json({ chartHtml, compact });
+  } catch (err) {
+    console.error("[consult] 오류:", err);
+    res.status(500).json({ error: "상담 준비 중 문제가 생겼습니다. 입력값을 확인해 주세요." });
   }
 });
 

@@ -19,13 +19,24 @@
     <main class="stage">
       <!-- 홈: 서비스 메뉴 -->
       <section id="view-home" class="view">
-        <p class="lead">헤어진 그 사람, 다시 이어질까?<br />달빛 아래에서 <b>재회운</b>과 연애 인연을 다정하게 풀어드려요.</p>
-        <div class="free-trial-note">🎁 첫 풀이는 <b>무료</b>로 체험하세요</div>
+        <p class="lead">사주를 보는 서비스가 아니라,<br /><b>더 좋은 선택을 돕는 AI 인생 파트너</b></p>
+        <p class="lead-sub">출생정보로 성향·운의 흐름·강점과 약점을 분석하고, 지금 가장 좋은 선택을 제안합니다.</p>
+        <div class="hero-cta">
+          <button type="button" class="cta-primary" data-service="saju">무료 분석 시작하기</button>
+          <button type="button" class="cta-ghost" data-scroll="examples">실제 분석 예시 보기</button>
+        </div>
+        <div class="free-trial-note">🎁 첫 분석은 <b>무료</b>로 체험하세요</div>
+
         <div class="menu">
-          <button class="svc-card hero" data-service="jaehoe">
-            <span class="hero-badge">대표 · 연애운</span>
-            <span class="svc-emoji">🕯️</span>
-            <span class="svc-text"><b>재회 가능성</b><small>헤어진 그 사람과 다시 이어질 수 있을까 — 재회운과 유리한 시기까지</small><span class="hero-hook">⏱ 3분이면 확인 · 생년월일만 있으면 OK</span></span>
+          <button class="svc-card hero" data-service="saju">
+            <span class="hero-badge">대표 · 종합 분석</span>
+            <span class="svc-emoji">🧭</span>
+            <span class="svc-text"><b>종합 사주 · 인생 분석</b><small>성격·재물·직업·연애·강점약점 + 지금의 실행 전략</small><span class="hero-hook">⏱ 3분이면 확인 · 생년월일만 있으면 OK</span></span>
+            <span class="svc-arrow">›</span>
+          </button>
+          <button class="svc-card" data-service="consult">
+            <span class="svc-emoji">💬</span>
+            <span class="svc-text"><b>AI 상담</b><small>고민을 물어보면 사주로 답해드려요</small></span>
             <span class="svc-arrow">›</span>
           </button>
           <button class="svc-card daily-feature" data-service="daily">
@@ -35,6 +46,11 @@
             <span class="svc-arrow">›</span>
           </button>
           <div class="menu-sub">연애·인연</div>
+          <button class="svc-card" data-service="jaehoe">
+            <span class="svc-emoji">🕯️</span>
+            <span class="svc-text"><b>재회 가능성</b><small>헤어진 그 사람과 다시 이어질까 — 재회운·유리한 시기</small></span>
+            <span class="svc-arrow">›</span>
+          </button>
           <button class="svc-card" data-service="gunghap">
             <span class="svc-emoji">💞</span>
             <span class="svc-text"><b>연인 궁합</b><small>지금 그 사람과 얼마나 잘 맞을까</small></span>
@@ -47,16 +63,72 @@
           </button>
           <button class="svc-card" data-service="tarot">
             <span class="svc-emoji">🃏</span>
-            <span class="svc-text"><b>타로 풀이</b><small>카드로 보는 지금의 연애·인연 흐름</small></span>
+            <span class="svc-text"><b>타로 풀이</b><small>카드로 보는 지금의 흐름</small></span>
             <span class="svc-arrow">›</span>
           </button>
-          <div class="menu-sub">나</div>
-          <button class="svc-card" data-service="saju">
-            <span class="svc-emoji">🔮</span>
-            <span class="svc-text"><b>사주 풀이</b><small>나의 타고난 기질과 삶의 흐름</small></span>
+          <div class="menu-sub">궁합 더보기</div>
+          <button class="svc-card" data-service="friend">
+            <span class="svc-emoji">🤝</span>
+            <span class="svc-text"><b>친구 궁합</b><small>우리, 얼마나 잘 통할까</small></span>
+            <span class="svc-arrow">›</span>
+          </button>
+          <button class="svc-card" data-service="family">
+            <span class="svc-emoji">👨‍👩‍👧</span>
+            <span class="svc-text"><b>가족 궁합</b><small>가족과의 인연·조화</small></span>
             <span class="svc-arrow">›</span>
           </button>
         </div>
+
+        <!-- 실제 분석 예시 -->
+        <section class="home-section" id="examples">
+          <h3 class="home-h">🧭 실제 분석 예시</h3>
+          <p class="home-sub">회원가입 없이도 이런 분석을 받아볼 수 있어요. (예시)</p>
+          <div class="ex-grid">
+            <div class="ex-card"><b>성격</b><p>차분하고 단단한 금(金)의 기질. 겉은 조용해도 속엔 분명한 기준이 있어요.</p></div>
+            <div class="ex-card"><b>재물운</b><p>큰 한 방보다 꾸준히 쌓는 힘이 강해요. 안정적 축적이 잘 맞는 구조.</p></div>
+            <div class="ex-card"><b>연애운</b><p>은근하고 진중한 사랑. 표현을 조금만 더하면 관계가 한결 편안해져요.</p></div>
+            <div class="ex-card"><b>사업운</b><p>혼자보다 좋은 파트너와 함께일 때 힘이 커지는 흐름이에요.</p></div>
+            <div class="ex-card"><b>직업운</b><p>전문성·분석이 필요한 분야에서 특히 빛나는 손재주가 있어요.</p></div>
+          </div>
+        </section>
+
+        <!-- 무료 vs 구독 -->
+        <section class="home-section">
+          <h3 class="home-h">무료 vs 구독</h3>
+          <div class="compare">
+            <div class="compare-col">
+              <div class="compare-head">무료</div>
+              <ul>
+                <li>오늘의 운세</li>
+                <li>성격 분석 일부</li>
+                <li>기본 사주 분석 (첫 1회)</li>
+              </ul>
+            </div>
+            <div class="compare-col paid">
+              <div class="compare-head">구독 ✦</div>
+              <ul>
+                <li>무제한 AI 상담</li>
+                <li>연애·사업·직업 상담</li>
+                <li>종합 사주 + 실행 전략</li>
+                <li>친구·가족 궁합</li>
+                <li class="soon">월간·연간 리포트 <span>(예정)</span></li>
+                <li class="soon">상담 기록·변화 추적 <span>(예정)</span></li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- 신뢰 -->
+        <section class="home-section">
+          <h3 class="home-h">믿고 보셔도 돼요</h3>
+          <div class="trust-grid">
+            <div class="trust-item"><b>🧮 만세력 기반</b><p>정통 만세력 데이터로 정확히 계산해요.</p></div>
+            <div class="trust-item"><b>🔎 근거 공개</b><p>일간·오행·대운을 함께 보여드려요.</p></div>
+            <div class="trust-item"><b>🔒 개인정보</b><p>생년월일은 계산에만 쓰고 저장하지 않아요. <a href="/policy.html" target="_blank">정책</a></p></div>
+            <div class="trust-item"><b>🌙 태도</b><p>운명을 단정하지 않아요. 더 나은 선택을 돕습니다.</p></div>
+          </div>
+          <div class="reviews-placeholder">💬 첫 후기를 기다리고 있어요</div>
+        </section>
       </section>
 
       <!-- 사주 풀이 (1인) -->
@@ -83,6 +155,23 @@
             <div class="heart-divider"><span id="couple-heart">💞</span></div>
             <div class="person-block" data-person="b"></div>
             <button type="submit" class="submit-btn" id="couple-submit">궁합 보기</button>
+          </form>
+        </section>
+      </section>
+
+      <!-- AI 상담 (1인 + 질문) -->
+      <section id="view-consult" class="view" hidden>
+        <button class="back" data-home>← 홈으로</button>
+        <h2 class="view-title">💬 AI 상담</h2>
+        <p class="view-desc">생년월일과 고민을 알려주시면, 사주를 바탕으로 답해드려요.</p>
+        <section class="panel">
+          <form id="form-consult">
+            <div data-person="c"></div>
+            <div class="fld">
+              <label for="consult-q">무엇이 궁금하세요?</label>
+              <input type="text" id="consult-q" maxlength="150" placeholder="예: 지금 이직해도 괜찮을까요?" />
+            </div>
+            <button type="submit" class="submit-btn">상담 받기</button>
           </form>
         </section>
       </section>
@@ -134,7 +223,7 @@
       <button class="modal-x" id="paywall-close" aria-label="닫기">✕</button>
       <div class="modal-emoji">🌙</div>
       <h3 class="modal-title">구독하고 풀이 받기</h3>
-      <p class="modal-desc">사주 명식·궁합 점수는 <b>무료</b>예요.<br />월하의 <b>AI 풀이</b>는 구독자 전용이랍니다.</p>
+      <p class="modal-desc">명식·점수는 <b>무료</b>, <b>AI 풀이</b>는 구독자 전용이에요.<br />구독하면 <b>무제한 AI 상담·종합 분석·궁합·실행 전략</b>을 모두 이용할 수 있어요.</p>
       <button class="modal-btn primary" id="paywall-subscribe">구독하기</button>
       <div class="modal-divider"><span>이미 구독하셨나요?</span></div>
       <div class="license-row">

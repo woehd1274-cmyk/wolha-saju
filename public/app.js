@@ -70,6 +70,7 @@ function collectPerson(p) {
 document.querySelector('#form-saju [data-person="s"]').innerHTML = personFormHtml("s", "");
 document.querySelector('#form-couple [data-person="a"]').innerHTML = personFormHtml("a", "🙋 나의 정보");
 document.querySelector('#form-couple [data-person="b"]').innerHTML = personFormHtml("b", "💌 상대의 정보");
+document.querySelector('#form-consult [data-person="c"]').innerHTML = personFormHtml("c", "");
 
 // 데일리 카드에 오늘 날짜 표시 (매일 새로워지는 느낌 강조 → 재방문 유도)
 (() => {
@@ -117,16 +118,26 @@ const statusEl = document.getElementById("reading-status");
 const COUPLE = {
   gunghap: { title: "💞 연인 궁합", desc: "두 사람의 사주로 궁합과 관계 기질을 봐요.", btn: "궁합 보기", heart: "💞", chart: "인연 지수 · 두 사람의 명식" },
   jaehoe: { title: "🕯️ 재회 가능성", desc: "헤어진 두 사람의 사주와 흐름을 따뜻하되 현실적으로 봐요.", btn: "재회 가능성 보기", heart: "🕯️", chart: "재회 인연 지수 · 흐름" },
+  friend: { title: "🤝 친구 궁합", desc: "두 사람의 사주로 우정 궁합을 봐요.", btn: "우정 궁합 보기", heart: "🤝", chart: "우정 지수 · 두 사람의 명식" },
+  family: { title: "👨‍👩‍👧 가족 궁합", desc: "두 사람의 사주로 가족 인연을 봐요.", btn: "가족 궁합 보기", heart: "👨‍👩‍👧", chart: "가족 인연 지수 · 명식" },
 };
 let coupleMode = "gunghap";
 
 // 1인 서비스 (같은 입력 폼, 서비스만 다름)
 const SOLO = {
-  saju: { title: "🔮 사주 풀이", desc: "", chart: "사주 원국" },
+  saju: { title: "🧭 종합 사주 · 인생 분석", desc: "성격·재물·직업·연애·강점약점 + 지금의 실행 전략까지 봐요.", chart: "사주 원국 (분석 근거)" },
   daily: { title: "🗓️ 오늘의 운세", desc: "오늘 하루의 기운을 봐요. 매일 새로워요.", chart: "오늘의 사주" },
   yearly: { title: "💘 올해의 연애운", desc: "올해 나의 연애·인연 흐름과 좋은 시기를 봐요.", chart: "올해의 흐름" },
 };
 let soloService = "saju";
+function openSolo(svc) {
+  soloService = svc;
+  const s = SOLO[svc];
+  document.getElementById("solo-title").textContent = s.title;
+  const desc = document.getElementById("solo-desc");
+  desc.textContent = s.desc; desc.hidden = !s.desc;
+  showView("view-saju");
+}
 
 function hideResults() {
   chartPanel.hidden = true;
@@ -152,16 +163,9 @@ document.querySelectorAll(".svc-card").forEach((card) => {
   card.addEventListener("click", () => {
     const svc = card.dataset.service;
     if (svc === "tarot") { showView("view-tarot"); return; }
-    if (SOLO[svc]) {
-      soloService = svc;
-      const s = SOLO[svc];
-      document.getElementById("solo-title").textContent = s.title;
-      const desc = document.getElementById("solo-desc");
-      desc.textContent = s.desc; desc.hidden = !s.desc;
-      showView("view-saju");
-      return;
-    }
-    coupleMode = svc; // gunghap | jaehoe
+    if (svc === "consult") { showView("view-consult"); return; }
+    if (SOLO[svc]) { openSolo(svc); return; }
+    coupleMode = svc; // gunghap | jaehoe | friend | family
     const c = COUPLE[svc];
     document.getElementById("couple-title").textContent = c.title;
     document.getElementById("couple-desc").textContent = c.desc;
@@ -328,3 +332,15 @@ const tarotBtn = document.querySelector("#form-tarot .submit-btn");
 document.getElementById("form-tarot").addEventListener("submit", withBusy(tarotBtn, "카드 뽑는 중…", () =>
   runFlow({ endpoint: "/api/tarot", payload: { question: document.getElementById("tarot-q").value.trim() }, service: "tarot", chartLabel: "뽑힌 카드" })
 ));
+
+const consultBtn = document.querySelector("#form-consult .submit-btn");
+document.getElementById("form-consult").addEventListener("submit", withBusy(consultBtn, "상담 준비 중…", () =>
+  runFlow({ endpoint: "/api/consult", payload: { ...collectPerson("c"), question: document.getElementById("consult-q").value.trim() }, service: "consult", chartLabel: "상담" })
+));
+
+// 히어로 CTA (무료 분석 시작 / 예시 보기)
+document.querySelectorAll(".cta-primary").forEach((b) => b.addEventListener("click", () => openSolo("saju")));
+document.querySelectorAll("[data-scroll]").forEach((b) => b.addEventListener("click", () => {
+  const el = document.getElementById(b.dataset.scroll);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}));
