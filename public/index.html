@@ -14,6 +14,10 @@
   <div class="app">
     <header class="topbar">
       <button class="brand" id="brand-home"><span class="logo">🌙</span> 월하 <span class="ver">月下</span></button>
+      <div class="auth-area" id="auth-area" hidden>
+        <button class="auth-btn kakao" id="login-btn" hidden><span class="k-ico"></span> 카카오 로그인</button>
+        <button class="auth-btn mypage" id="mypage-btn" hidden>📁 <span id="my-nick"></span>님</button>
+      </div>
     </header>
 
     <main class="stage">
@@ -37,6 +41,21 @@
           <button class="svc-card" data-service="consult">
             <span class="svc-emoji">💬</span>
             <span class="svc-text"><b>AI 상담</b><small>고민을 물어보면 사주로 답해드려요</small></span>
+            <span class="svc-arrow">›</span>
+          </button>
+          <button class="svc-card" data-service="monthly">
+            <span class="svc-emoji">📅</span>
+            <span class="svc-text"><b>이번 달 리포트</b><small>이번 달 흐름 + 내 목표를 묶은 실행 리포트 <span class="mini-badge">회원 기록 저장</span></small></span>
+            <span class="svc-arrow">›</span>
+          </button>
+          <button class="svc-card" data-service="annual">
+            <span class="svc-emoji">📊</span>
+            <span class="svc-text"><b>올해 종합 리포트</b><small>재물·직업·연애·건강 + 목표까지 올해 1년 종합 <span class="mini-badge">회원 기록 저장</span></small></span>
+            <span class="svc-arrow">›</span>
+          </button>
+          <button class="svc-card" data-service="trend">
+            <span class="svc-emoji">📈</span>
+            <span class="svc-text"><b>운세 흐름</b><small>앞으로 4주, 나의 기운 그래프 <span class="mini-badge free">무료</span></small></span>
             <span class="svc-arrow">›</span>
           </button>
           <button class="svc-card daily-feature" data-service="daily">
@@ -127,7 +146,9 @@
             <div class="trust-item"><b>🔒 개인정보</b><p>생년월일은 계산에만 쓰고 저장하지 않아요. <a href="/policy.html" target="_blank">정책</a></p></div>
             <div class="trust-item"><b>🌙 태도</b><p>운명을 단정하지 않아요. 더 나은 선택을 돕습니다.</p></div>
           </div>
-          <div class="reviews-placeholder">💬 첫 후기를 기다리고 있어요</div>
+          <div class="reviews-list" id="reviews-list">
+            <div class="reviews-placeholder">💬 첫 후기를 기다리고 있어요</div>
+          </div>
         </section>
       </section>
 
@@ -176,6 +197,47 @@
         </section>
       </section>
 
+      <!-- 이번 달 리포트 (1인 + 목표 연동) -->
+      <section id="view-monthly" class="view" hidden>
+        <button class="back" data-home>← 홈으로</button>
+        <h2 class="view-title">📅 이번 달 리포트</h2>
+        <p class="view-desc">이번 달의 흐름과 <b>내 목표</b>를 묶어 실행 리포트를 만들어 드려요. 로그인하면 리포트가 저장돼요.</p>
+        <div class="goal-hint goal-hint-auto" id="monthly-goal-hint" hidden></div>
+        <section class="panel">
+          <form id="form-monthly">
+            <div data-person="m"></div>
+            <button type="submit" class="submit-btn">📅 이번 달 리포트 받기</button>
+          </form>
+        </section>
+      </section>
+
+      <!-- 올해 종합 리포트 (1인 + 목표 연동) -->
+      <section id="view-annual" class="view" hidden>
+        <button class="back" data-home>← 홈으로</button>
+        <h2 class="view-title">📊 올해 종합 리포트</h2>
+        <p class="view-desc">올해 1년의 재물·직업·연애·건강 흐름과 <b>내 목표</b>를 종합해 드려요. 로그인하면 저장돼요.</p>
+        <div class="goal-hint goal-hint-auto" hidden></div>
+        <section class="panel">
+          <form id="form-annual">
+            <div data-person="an"></div>
+            <button type="submit" class="submit-btn">📊 올해 리포트 받기</button>
+          </form>
+        </section>
+      </section>
+
+      <!-- 운세 흐름 (그래프 · AI 없음) -->
+      <section id="view-trend" class="view" hidden>
+        <button class="back" data-home>← 홈으로</button>
+        <h2 class="view-title">📈 운세 흐름</h2>
+        <p class="view-desc">앞으로 4주 동안 나의 기운이 어떻게 흐르는지 그래프로 보여드려요. (일진 기준 · 참고용)</p>
+        <section class="panel">
+          <form id="form-trend">
+            <div data-person="t"></div>
+            <button type="submit" class="submit-btn">📈 흐름 보기</button>
+          </form>
+        </section>
+      </section>
+
       <!-- 타로 풀이 -->
       <section id="view-tarot" class="view" hidden>
         <button class="back" data-home>← 홈으로</button>
@@ -190,6 +252,55 @@
             <button type="submit" class="submit-btn">🃏 카드 뽑기</button>
           </form>
         </section>
+      </section>
+
+      <!-- 마이페이지 (로그인 회원) -->
+      <section id="view-mypage" class="view" hidden>
+        <button class="back" data-home>← 홈으로</button>
+        <h2 class="view-title">📁 마이페이지</h2>
+        <p class="view-desc" id="mypage-hello">그동안 받은 분석을 다시 볼 수 있어요.</p>
+        <div class="mypage-bar">
+          <button type="button" class="ghost" id="logout-btn">로그아웃</button>
+        </div>
+
+        <!-- 나의 목표 카드 -->
+        <section class="goal-card">
+          <div class="goal-head">🎯 <b>나의 목표</b><small>이번 달 리포트에 반영돼요</small></div>
+          <div class="goal-cats" id="goal-cats">
+            <button type="button" class="goal-cat" data-cat="연애·인연">💗 연애·인연</button>
+            <button type="button" class="goal-cat" data-cat="직업·이직">💼 직업·이직</button>
+            <button type="button" class="goal-cat" data-cat="사업·재물">💰 사업·재물</button>
+            <button type="button" class="goal-cat" data-cat="건강·습관">🌱 건강·습관</button>
+            <button type="button" class="goal-cat" data-cat="공부·자기계발">📚 공부·자기계발</button>
+          </div>
+          <textarea id="goal-input" maxlength="200" placeholder="예: 올해 안에 이직 준비를 마치고 싶어요"></textarea>
+          <div class="goal-actions">
+            <button type="button" class="submit-btn small" id="goal-save">목표 저장</button>
+            <button type="button" class="ghost" id="goal-monthly">📅 이번 달 리포트 받기</button>
+          </div>
+          <div class="goal-msg" id="goal-msg"></div>
+        </section>
+
+        <!-- 후기 남기기 -->
+        <section class="review-write">
+          <div class="goal-head">💬 <b>월하 사용 후기</b><small>남겨주시면 홈에 소개돼요 (수정 가능)</small></div>
+          <div class="star-pick" id="star-pick">
+            <button type="button" class="star" data-v="1">★</button>
+            <button type="button" class="star" data-v="2">★</button>
+            <button type="button" class="star" data-v="3">★</button>
+            <button type="button" class="star" data-v="4">★</button>
+            <button type="button" class="star" data-v="5">★</button>
+          </div>
+          <textarea id="review-text" maxlength="300" placeholder="월하를 써보니 어떠셨나요? 짧아도 좋아요."></textarea>
+          <div class="goal-actions">
+            <button type="button" class="submit-btn small" id="review-save">후기 등록</button>
+          </div>
+          <div class="goal-msg" id="review-msg"></div>
+        </section>
+
+        <div class="mypage-sub">📜 나의 성장 기록</div>
+        <div class="mypage-summary" id="mypage-summary" hidden></div>
+        <div class="history-list" id="history-list"></div>
       </section>
 
       <!-- 결과 (공용) -->

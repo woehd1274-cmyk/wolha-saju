@@ -5,10 +5,14 @@
 import fs from "fs";
 import express from "express";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
 import { marked } from "marked";
 import { calculateSaju } from "ssaju";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import Anthropic from "@anthropic-ai/sdk";
+import pkg from "pg";
+import jwt from "jsonwebtoken";
+const { Pool } = pkg;
 
 // .env 파일이 있으면 읽어서 환경변수로 로드 (의존성 없는 간단 파서)
 // 예: CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-...
@@ -33,20 +37,92 @@ const MODEL = process.env.SAJU_MODEL || "claude-sonnet-5";
 const USE_API_KEY = !!process.env.ANTHROPIC_API_KEY;
 const anthropic = USE_API_KEY ? new Anthropic() : null;
 
-// 구독 결제(레몬스퀴지): 체크아웃 URL이 설정되면 AI 풀이를 '구독자 전용'으로 잠금.
+// 구독 결제(Gumroad): 판매 링크가 설정되면 AI 풀이를 '구독자 전용'으로 잠금.
 // 설정 전에는 잠금이 꺼져 있어 누구나 무료로 사용(=지금 상태 유지).
-const LS_CHECKOUT_URL = process.env.LEMONSQUEEZY_CHECKOUT_URL || "";
-const PAYWALL_ON = !!LS_CHECKOUT_URL;
+// GUMROAD_PRODUCT_URL: 손님이 구독하는 판매 링크 (예: https://xxxx.gumroad.com/l/wolha)
+// GUMROAD_PRODUCT_ID: 라이선스 키 검증용 상품 ID (판매 페이지에서 자동 추출해 설정)
+const CHECKOUT_URL = process.env.GUMROAD_PRODUCT_URL || "";
+const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || "";
+const PAYWALL_ON = !!CHECKOUT_URL;
 // 주인 키: 이 비밀 코드를 라이선스 칸에 넣으면 결제 없이 항상 잠금 해제 (운영자·지인 무료 이용)
 const OWNER_KEY = process.env.OWNER_KEY || "";
+// 구독자 공용 코드: Gumroad 구매 후 안내문(콘텐츠)에 이 코드를 적어두면, 구독자가 입력해 잠금 해제.
+// (라이선스 키를 켤 수 없을 때의 대체 수단 — 라이선스 키가 켜지면 그쪽이 우선)
+const SUBSCRIBER_CODE = process.env.SUBSCRIBER_CODE || "";
 // 첫 1회 무료 체험 (IP당). 서버 재시작 시 초기화됨.
 const FREE_TRIAL_COUNT = Number(process.env.FREE_TRIAL_COUNT || 1);
 const freeTrialUsed = new Map(); // ip -> 사용횟수
 // 간단 방문 통계 (메모리 — 재배포 시 초기화)
 const stats = { visits: 0, readings: {}, subscribersUnlocked: 0, since: new Date().toISOString() };
 
+// ── 로그인·기록 저장 (카카오 + Postgres). 미설정이면 로그인 기능만 꺼지고 사이트는 그대로 작동. ──
+const DATABASE_URL = process.env.DATABASE_URL || "";
+const KAKAO_CLIENT_ID = process.env.KAKAO_CLIENT_ID || "";
+const KAKAO_CLIENT_SECRET = process.env.KAKAO_CLIENT_SECRET || "";
+const SESSION_SECRET = process.env.SESSION_SECRET || "wolha-dev-secret-change-me";
+const BASE_URL = (process.env.BASE_URL || "https://wolha-saju-production.up.railway.app").replace(/\/$/, "");
+const AUTH_ON = !!(DATABASE_URL && KAKAO_CLIENT_ID && KAKAO_CLIENT_SECRET);
+const pool = DATABASE_URL
+  ? new Pool({ connectionString: DATABASE_URL, ssl: DATABASE_URL.includes("railway.internal") ? false : { rejectUnauthorized: false } })
+  : null;
+let DB_READY = false;
+async function initDb() {
+  if (!pool) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    kakao_id TEXT UNIQUE NOT NULL,
+    nickname TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )`);
+  // 목표 설정(성장 파트너) — 기존 테이블에도 안전하게 컬럼 추가
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS goal TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_category TEXT`);
+  // 실제 후기(회원 1인 1건 · 홈에 게시)
+  await pool.query(`CREATE TABLE IF NOT EXISTS reviews (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    nickname TEXT,
+    rating INTEGER,
+    text TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS readings (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    service TEXT,
+    title TEXT,
+    markdown TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )`);
+  DB_READY = true;
+  console.log("[db] 준비 완료 ✅");
+}
+initDb().catch((e) => console.error("[db] init 실패:", e.message));
+
 app.use(express.json({ limit: "64kb" }));
+app.use(cookieParser());
 app.set("trust proxy", 1); // 배포(프록시) 환경에서 실제 접속자 IP 인식
+
+// 세션(JWT 쿠키) 헬퍼
+function setSession(res, userId) {
+  const token = jwt.sign({ uid: userId }, SESSION_SECRET, { expiresIn: "30d" });
+  res.cookie("wolha_session", token, { httpOnly: true, sameSite: "lax", secure: true, maxAge: 30 * 24 * 3600 * 1000 });
+}
+function getUserId(req) {
+  try {
+    const t = req.cookies?.wolha_session;
+    if (!t) return null;
+    return jwt.verify(t, SESSION_SECRET).uid;
+  } catch {
+    return null;
+  }
+}
+const SERVICE_LABEL = {
+  saju: "🧭 종합 사주 · 인생 분석", consult: "💬 AI 상담", daily: "🗓️ 오늘의 운세",
+  yearly: "💘 올해의 연애운", tarot: "🃏 타로 풀이", jaehoe: "🕯️ 재회 가능성",
+  gunghap: "💞 연인 궁합", friend: "🤝 친구 궁합", family: "👨‍👩‍👧 가족 궁합",
+  monthly: "📅 이번 달 리포트", annual: "📊 올해 종합 리포트",
+};
 
 // 악용 방지: AI 풀이 요청을 IP당 시간당 횟수 제한 (요금 폭탄 방지)
 const interpretLimiter = rateLimit({
@@ -64,6 +140,21 @@ const EL_CLASS = { 목: "wood", 화: "fire", 토: "earth", 금: "metal", 수: "w
 const elc = (e) => "el-" + (EL_CLASS[e] || "earth");
 const STEM_EL = { 甲: "목", 乙: "목", 丙: "화", 丁: "화", 戊: "토", 己: "토", 庚: "금", 辛: "금", 壬: "수", 癸: "수" };
 const BRANCH_EL = { 子: "수", 丑: "토", 寅: "목", 卯: "목", 辰: "토", 巳: "화", 午: "화", 未: "토", 申: "금", 酉: "금", 戌: "토", 亥: "수" };
+const STEMS_SEQ = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
+const BRANCHES_SEQ = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
+// 오행 상생(생)·상극(극) 관계
+const EL_GEN = { 목: "화", 화: "토", 토: "금", 금: "수", 수: "목" }; // X가 Y를 생함
+const EL_CTRL = { 목: "토", 토: "수", 수: "화", 화: "금", 금: "목" }; // X가 Y를 극함
+// 그날 기운(D) 대비 나(일간 오행 U)의 관계 점수
+function relScore(U, D) {
+  if (D === U) return 68;          // 비겁
+  if (EL_GEN[D] === U) return 88;  // 그날이 나를 생함 → 인성(도움)
+  if (EL_GEN[U] === D) return 62;  // 내가 그날을 생함 → 식상(소모)
+  if (EL_CTRL[D] === U) return 42; // 그날이 나를 극함 → 관성(압박)
+  if (EL_CTRL[U] === D) return 78; // 내가 그날을 극함 → 재성(기회)
+  return 60;
+}
+const mod = (n, m) => ((n % m) + m) % m;
 const STRENGTH_KO = { strong: "신강", weak: "신약", neutral: "중화" };
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -640,8 +731,44 @@ const CONSULT_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 'AI
   ## 다정한 한마디
 - 각 소제목은 2~4문장.`;
 
-const PROMPTS = { saju: SAJU_PROMPT, gunghap: GUNGHAP_PROMPT, jaehoe: JAEHOE_PROMPT, daily: DAILY_PROMPT, yearly: YEARLY_PROMPT, tarot: TAROT_PROMPT, friend: FRIEND_PROMPT, family: FAMILY_PROMPT, consult: CONSULT_PROMPT };
+const MONTHLY_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 'AI 인생 파트너'입니다.
+전달받은 사주와 '이번 달(현재 연·월) 만세력', 그리고 회원이 설정한 '나의 목표'가 있다면 그것을 바탕으로, 이번 한 달의 실행 리포트를 작성합니다.
+
+작성 규칙:
+- 존댓말로, 다정하되 현실적으로. 이번 '한 달'에 철저히 집중(연간·평생 아님).
+- '오늘/올해 참고'의 올해 세운·이번달 정보를 근거로 이번 달의 기운과 흐름을 짚을 것.
+- '나의 목표'가 주어지면, 그 목표를 이번 달에 어떻게 진전시킬지 구체적으로 연결할 것. 목표가 없으면 그 소제목은 일반적인 이번 달 실행 조언으로 대체.
+- 예언보다 '이번 달에 무엇을 하면 좋은지' 실천 가능한 행동 위주. 전문 용어는 쉽게.
+- 마크다운 소제목:
+  ## 이번 달, 한눈에
+  ## 이번 달의 기회
+  ## 이번 달 조심할 점
+  ## 나의 목표를 위한 이번 달 실행 전략
+  ## 다정한 한마디
+- 각 소제목은 2~4문장. '실행 전략'에는 이번 달에 바로 할 수 있는 행동을 1~3가지 구체적으로.`;
+
+const ANNUAL_PROMPT = `당신은 '월하(月下)'라는 이름의 따뜻한 'AI 인생 파트너'입니다.
+전달받은 사주와 '올해(현재 연도) 세운', 그리고 회원이 설정한 '나의 목표'가 있다면 그것을 바탕으로, 올해 1년의 종합 리포트를 작성합니다.
+
+작성 규칙:
+- 존댓말로, 다정하되 현실적으로. 연애뿐 아니라 재물·직업·건강·관계까지 '올해 한 해'를 종합적으로.
+- '오늘/올해 참고'의 올해 세운을 근거로 올해의 큰 흐름과 분기별(상·하반기) 리듬을 짚을 것.
+- '나의 목표'가 주어지면 올해 그 목표를 어떻게 이룰지 구체적으로 연결. 없으면 일반 조언으로 대체.
+- 예언보다 '올해 무엇을 하면 좋은지' 실천 가능한 전략 위주. 전문 용어는 쉽게. 단정 금지.
+- 마크다운 소제목:
+  ## 올해의 나, 한눈에
+  ## 재물·일·직업운
+  ## 연애·인간관계
+  ## 건강·리듬
+  ## 상반기 · 하반기 흐름
+  ## 나의 목표를 위한 올해 전략
+  ## 다정한 한마디
+- 각 소제목은 2~4문장. '올해 전략'에는 올해 안에 실천할 행동을 2~4가지 구체적으로.`;
+
+const PROMPTS = { saju: SAJU_PROMPT, gunghap: GUNGHAP_PROMPT, jaehoe: JAEHOE_PROMPT, daily: DAILY_PROMPT, yearly: YEARLY_PROMPT, tarot: TAROT_PROMPT, friend: FRIEND_PROMPT, family: FAMILY_PROMPT, consult: CONSULT_PROMPT, monthly: MONTHLY_PROMPT, annual: ANNUAL_PROMPT };
 const USER_INTRO = {
+  annual: "아래는 한 사람의 사주와 올해(현재 연도) 세운, 그리고 (있다면) 회원의 목표입니다. 규칙에 맞게 올해 종합 리포트를 작성해 주세요.",
+  monthly: "아래는 한 사람의 사주와 이번 달(현재 연·월) 만세력, 그리고 (있다면) 회원의 목표입니다. 규칙에 맞게 이번 달 실행 리포트를 작성해 주세요.",
   saju: "아래는 한 사람의 사주 명식(만세력 계산 결과)입니다. 규칙에 맞게 풀이해 주세요.",
   gunghap: "아래는 두 사람의 사주와 간이 궁합 계산 결과입니다. 규칙에 맞게 두 사람의 연인 궁합을 풀이해 주세요.",
   jaehoe: "아래는 헤어진 두 사람(사람A의 관점)의 사주와 관계 계산 결과입니다. 규칙에 맞게 재회 가능성을 풀이해 주세요.",
@@ -669,6 +796,133 @@ app.post("/api/saju", (req, res) => {
   } catch (err) {
     console.error("[saju] 계산 오류:", err);
     res.status(500).json({ error: "사주 계산 중 문제가 생겼습니다. 입력값을 확인해 주세요." });
+  }
+});
+
+/* ---------- 1-b) 월간 리포트 (1인 + 이번 달 + 나의 목표) ---------- */
+app.post("/api/monthly", async (req, res) => {
+  try {
+    const input = normalizeInput(req.body);
+    if (!input.year || !input.month || !input.day) {
+      return res.status(400).json({ error: "생년월일(년/월/일)은 반드시 입력해야 합니다." });
+    }
+    const result = runSaju(input);
+    const ref = result.reference || {};
+    const codes = ref.codes || {};
+    const now = new Date();
+    const ym = `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
+    let monthInfo = `\n\n# 이번 달 참고\n이번 달: ${ym}\n지금: ${ref.now || "-"}\n올해 세운: ${codes.thisYear || "-"} / 이번달: ${codes.thisMonth || "-"}`;
+
+    // 로그인 회원이면 저장된 목표를 함께 전달
+    const uid = getUserId(req);
+    if (uid && pool) {
+      try {
+        const g = await pool.query("SELECT goal, goal_category FROM users WHERE id = $1", [uid]);
+        const goal = g.rows[0]?.goal;
+        const cat = g.rows[0]?.goal_category;
+        if (goal) monthInfo += `\n\n# 나의 목표\n${cat ? "[" + cat + "] " : ""}${goal}`;
+      } catch {}
+    }
+
+    const banner = `<div class="month-banner">📅 <b>${esc(ym)}</b> 이번 달 리포트</div>`;
+    res.json({ chartHtml: banner + renderChart(result, input), compact: result.toCompact() + monthInfo });
+  } catch (err) {
+    console.error("[monthly] 계산 오류:", err);
+    res.status(500).json({ error: "월간 리포트 준비 중 문제가 생겼습니다. 입력값을 확인해 주세요." });
+  }
+});
+
+/* ---------- 1-d) 연간 종합 리포트 (1인 + 올해 세운 + 나의 목표) ---------- */
+app.post("/api/annual", async (req, res) => {
+  try {
+    const input = normalizeInput(req.body);
+    if (!input.year || !input.month || !input.day) {
+      return res.status(400).json({ error: "생년월일(년/월/일)은 반드시 입력해야 합니다." });
+    }
+    const result = runSaju(input);
+    const ref = result.reference || {};
+    const codes = ref.codes || {};
+    const yr = new Date().getFullYear();
+    let info = `\n\n# 올해 참고\n올해: ${yr}년\n지금: ${ref.now || "-"}\n올해 세운: ${codes.thisYear || "-"} / 내년: ${codes.nextYear || "-"}`;
+    const uid = getUserId(req);
+    if (uid && pool) {
+      try {
+        const g = await pool.query("SELECT goal, goal_category FROM users WHERE id = $1", [uid]);
+        const goal = g.rows[0]?.goal, cat = g.rows[0]?.goal_category;
+        if (goal) info += `\n\n# 나의 목표\n${cat ? "[" + cat + "] " : ""}${goal}`;
+      } catch {}
+    }
+    const banner = `<div class="month-banner">📊 <b>${yr}년</b> 올해 종합 리포트</div>`;
+    res.json({ chartHtml: banner + renderChart(result, input), compact: result.toCompact() + info });
+  } catch (err) {
+    console.error("[annual] 계산 오류:", err);
+    res.status(500).json({ error: "연간 리포트 준비 중 문제가 생겼습니다. 입력값을 확인해 주세요." });
+  }
+});
+
+/* ---------- 1-c) 운세 흐름 추적 (앞으로 28일 일진 기운 그래프 · AI 없음/무료) ---------- */
+app.post("/api/fortune-trend", (req, res) => {
+  try {
+    const input = normalizeInput(req.body);
+    if (!input.year || !input.month || !input.day) {
+      return res.status(400).json({ error: "생년월일(년/월/일)은 반드시 입력해야 합니다." });
+    }
+    const result = runSaju(input);
+    const userEl = result.pillarDetails?.day?.element?.stem; // 나의 일간 오행(목화토금수)
+    const todayGz = (result.reference?.codes?.today || "").trim();
+    if (!userEl || todayGz.length < 2) return res.status(500).json({ error: "운세 계산에 필요한 정보를 얻지 못했어요." });
+    const si = STEMS_SEQ.indexOf(todayGz[0]);
+    const bi = BRANCHES_SEQ.indexOf(todayGz[1]);
+
+    const WD = ["일", "월", "화", "수", "목", "금", "토"];
+    const kst = new Date(Date.now() + 9 * 3600 * 1000);
+    const ty = kst.getUTCFullYear(), tm = kst.getUTCMonth(), tdd = kst.getUTCDate();
+
+    const COUNT = 28;
+    const days = [];
+    for (let k = 0; k < COUNT; k++) {
+      const stem = STEMS_SEQ[mod(si + k, 10)];
+      const branch = BRANCHES_SEQ[mod(bi + k, 12)];
+      const score = Math.round(0.7 * relScore(userEl, STEM_EL[stem]) + 0.3 * relScore(userEl, BRANCH_EL[branch]));
+      const dt = new Date(Date.UTC(ty, tm, tdd + k));
+      const wd = dt.getUTCDay();
+      days.push({
+        label: `${dt.getUTCMonth() + 1}.${dt.getUTCDate()}`,
+        wd: WD[wd], weekend: wd === 0 || wd === 6,
+        score, isToday: k === 0,
+      });
+    }
+
+    const tier = (s) => (s >= 80 ? "hi" : s >= 66 ? "mid" : s >= 52 ? "lo" : "dn");
+    const h = (s) => Math.max(18, Math.min(100, Math.round((s - 35) * 1.7)));
+    const bars = days.map((d) =>
+      `<div class="trend-col${d.isToday ? " today" : ""}">
+        <div class="trend-bar ${tier(d.score)}" style="height:${h(d.score)}%"><span class="trend-score">${d.score}</span></div>
+        <div class="trend-day">${d.isToday ? "오늘" : d.label}</div>
+        <div class="trend-wd${d.weekend ? " we" : ""}">${d.wd}</div>
+      </div>`
+    ).join("");
+
+    const sorted = [...days].map((d, i) => ({ ...d, i }));
+    const best = [...sorted].sort((a, b) => b.score - a.score || a.i - b.i).slice(0, 3);
+    const caution = [...sorted].sort((a, b) => a.score - b.score || a.i - b.i).slice(0, 2);
+    const fmt = (d) => `${d.isToday ? "오늘" : d.label}(${d.wd})`;
+    const goodTxt = best.map((d) => `<b>${fmt(d)}</b>`).join(" · ");
+    const cautTxt = caution.map((d) => `<b>${fmt(d)}</b>`).join(" · ");
+
+    const graphHtml = `<div class="trend-wrap">
+      <div class="trend-legend">📈 앞으로 4주, 나의 기운 흐름 <small>(그날 일진과 내 사주의 관계 · 참고용)</small></div>
+      <div class="trend-bars">${bars}</div>
+      <div class="trend-summary">
+        <div class="ts-good">🌟 <span>기운 좋은 날</span> ${goodTxt}</div>
+        <div class="ts-caution">🌫️ <span>차분히 갈 날</span> ${cautTxt}</div>
+      </div>
+      <div class="trend-note">숫자는 그날의 <b>일진(日辰)</b>과 내 <b>일간(${esc(userEl)})</b>의 오행 관계로 낸 참고 지수예요. 낮은 날이 '나쁜 날'이 아니라 <b>무리하지 말고 정비할 날</b>이에요. 🌙</div>
+    </div>`;
+    res.json({ graphHtml });
+  } catch (err) {
+    console.error("[trend] 오류:", err);
+    res.status(500).json({ error: "운세 흐름을 계산하는 중 문제가 생겼습니다." });
   }
 });
 
@@ -700,16 +954,23 @@ app.post("/api/compat", (req, res) => {
 const licCache = new Map(); // key -> { valid, status, exp }
 
 async function validateLicense(key) {
-  if (!key || typeof key !== "string" || key.length < 8 || key.length > 200) return { valid: false };
+  if (!key || typeof key !== "string" || key.length < 6 || key.length > 200) return { valid: false };
   if (OWNER_KEY && key.trim().toLowerCase() === OWNER_KEY.toLowerCase()) return { valid: true, status: "owner" }; // 주인 키 — 결제 없이 통과 (대소문자 무시)
+  if (SUBSCRIBER_CODE && key.trim().toLowerCase() === SUBSCRIBER_CODE.toLowerCase()) return { valid: true, status: "subscriber" }; // 구독자 공용 코드
+  if (!GUMROAD_PRODUCT_ID) return { valid: false }; // 상품 ID 미설정 시 검증 불가
   try {
-    const resp = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
+    // Gumroad 라이선스 검증 (액세스 토큰 불필요 · 공개 엔드포인트)
+    const resp = await fetch("https://api.gumroad.com/v2/licenses/verify", {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ license_key: key.trim() }),
+      body: new URLSearchParams({ product_id: GUMROAD_PRODUCT_ID, license_key: key.trim(), increment_uses_count: "false" }),
     });
     const data = await resp.json();
-    return { valid: !!data.valid, status: data?.license_key?.status || null };
+    const p = data?.purchase || {};
+    // 유효 조건: 검증 성공 + 환불 안 됨 + 구독 종료/실패 안 됨 (해지 후 잔여기간은 유지)
+    const active = !!data.success && !p.refunded && !p.disputed && !p.subscription_ended_at && !p.subscription_failed_at;
+    const status = !data.success ? "invalid" : p.subscription_ended_at ? "ended" : p.subscription_cancelled_at ? "cancelling" : "active";
+    return { valid: active, status };
   } catch (e) {
     console.error("[license] 검증 오류:", e.message);
     return { valid: false, error: true };
@@ -749,7 +1010,7 @@ async function generateReading(systemPrompt, userPrompt) {
 /* ---------- 앱 설정 / 구독 확인 ---------- */
 app.get("/api/config", (req, res) => {
   stats.visits++;
-  res.json({ paywall: PAYWALL_ON, checkoutUrl: LS_CHECKOUT_URL, freeTrial: FREE_TRIAL_COUNT });
+  res.json({ paywall: PAYWALL_ON, checkoutUrl: CHECKOUT_URL, freeTrial: FREE_TRIAL_COUNT });
 });
 
 app.post("/api/license/validate", async (req, res) => {
@@ -762,6 +1023,187 @@ app.get("/api/stats", (req, res) => {
   if (!OWNER_KEY || req.query.key !== OWNER_KEY) return res.status(403).json({ error: "권한 없음" });
   const totalReadings = Object.values(stats.readings).reduce((a, b) => a + b, 0);
   res.json({ ...stats, totalReadings, freeTrialIPs: freeTrialUsed.size });
+});
+
+/* ---------- 로그인(카카오) · 세션 · 마이페이지 ---------- */
+// 로그인 시작 → 카카오 동의 화면으로
+app.get("/auth/kakao", (req, res) => {
+  if (!AUTH_ON) return res.status(503).send("로그인은 준비 중이에요. 잠시만 기다려 주세요.");
+  const redirectUri = `${BASE_URL}/auth/kakao/callback`;
+  const url =
+    `https://kauth.kakao.com/oauth/authorize?response_type=code` +
+    `&client_id=${encodeURIComponent(KAKAO_CLIENT_ID)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  res.redirect(url);
+});
+
+// 카카오 콜백 → 토큰 교환 → 프로필 조회 → 회원 upsert → 세션 발급
+app.get("/auth/kakao/callback", async (req, res) => {
+  if (!AUTH_ON || !pool) return res.redirect("/?login=off");
+  try {
+    const code = req.query.code;
+    if (!code) return res.redirect("/?login=fail");
+    const redirectUri = `${BASE_URL}/auth/kakao/callback`;
+    const tokResp = await fetch("https://kauth.kakao.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: KAKAO_CLIENT_ID,
+        client_secret: KAKAO_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        code,
+      }),
+    });
+    const tok = await tokResp.json();
+    if (!tok.access_token) throw new Error("토큰 교환 실패: " + JSON.stringify(tok));
+    const meResp = await fetch("https://kapi.kakao.com/v2/user/me", {
+      headers: { Authorization: `Bearer ${tok.access_token}` },
+    });
+    const me = await meResp.json();
+    const kakaoId = String(me.id);
+    const nickname = me.kakao_account?.profile?.nickname || me.properties?.nickname || "회원";
+    const r = await pool.query(
+      `INSERT INTO users (kakao_id, nickname) VALUES ($1, $2)
+       ON CONFLICT (kakao_id) DO UPDATE SET nickname = EXCLUDED.nickname
+       RETURNING id`,
+      [kakaoId, nickname]
+    );
+    setSession(res, r.rows[0].id);
+    res.redirect("/?login=1");
+  } catch (e) {
+    console.error("[kakao] 로그인 오류:", e.message);
+    res.redirect("/?login=fail");
+  }
+});
+
+app.post("/api/logout", (req, res) => {
+  res.clearCookie("wolha_session");
+  res.json({ ok: true });
+});
+
+// 현재 로그인 상태
+app.get("/api/me", async (req, res) => {
+  if (!AUTH_ON || !pool) return res.json({ authOn: false, user: null });
+  const uid = getUserId(req);
+  if (!uid) return res.json({ authOn: true, user: null });
+  try {
+    const r = await pool.query("SELECT id, nickname FROM users WHERE id = $1", [uid]);
+    res.json({ authOn: true, user: r.rows[0] || null });
+  } catch {
+    res.json({ authOn: true, user: null });
+  }
+});
+
+// 나의 목표 조회 / 저장 (성장 파트너)
+app.get("/api/goal", async (req, res) => {
+  const uid = getUserId(req);
+  if (!uid || !pool) return res.json({ goal: "", category: "" });
+  try {
+    const r = await pool.query("SELECT goal, goal_category FROM users WHERE id = $1", [uid]);
+    res.json({ goal: r.rows[0]?.goal || "", category: r.rows[0]?.goal_category || "" });
+  } catch {
+    res.json({ goal: "", category: "" });
+  }
+});
+app.post("/api/goal", async (req, res) => {
+  const uid = getUserId(req);
+  if (!uid || !pool) return res.status(401).json({ error: "로그인이 필요해요." });
+  const goal = (req.body?.goal || "").toString().slice(0, 200);
+  const category = (req.body?.category || "").toString().slice(0, 40);
+  try {
+    await pool.query("UPDATE users SET goal = $1, goal_category = $2 WHERE id = $3", [goal, category, uid]);
+    res.json({ ok: true, goal, category });
+  } catch (e) {
+    console.error("[goal] 저장 실패:", e.message);
+    res.status(500).json({ error: "저장 중 문제가 생겼어요." });
+  }
+});
+
+// 후기: 게시된 목록 (홈에 노출 · 공개)
+app.get("/api/reviews", async (req, res) => {
+  if (!pool) return res.json({ reviews: [] });
+  try {
+    const r = await pool.query("SELECT id, nickname, rating, text, created_at FROM reviews ORDER BY created_at DESC LIMIT 30");
+    res.json({ reviews: r.rows });
+  } catch {
+    res.json({ reviews: [] });
+  }
+});
+// 내 후기 (수정용 프리필)
+app.get("/api/my-review", async (req, res) => {
+  const uid = getUserId(req);
+  if (!uid || !pool) return res.json({ review: null });
+  try {
+    const r = await pool.query("SELECT rating, text FROM reviews WHERE user_id = $1", [uid]);
+    res.json({ review: r.rows[0] || null });
+  } catch {
+    res.json({ review: null });
+  }
+});
+// 후기 작성/수정 (회원 1인 1건)
+app.post("/api/reviews", async (req, res) => {
+  const uid = getUserId(req);
+  if (!uid || !pool) return res.status(401).json({ error: "로그인이 필요해요." });
+  const rating = Math.max(1, Math.min(5, parseInt(req.body?.rating, 10) || 0));
+  const text = (req.body?.text || "").toString().trim().slice(0, 300);
+  if (!rating || !text) return res.status(400).json({ error: "별점과 후기 내용을 입력해 주세요." });
+  try {
+    const u = await pool.query("SELECT nickname FROM users WHERE id = $1", [uid]);
+    const nickname = u.rows[0]?.nickname || "회원";
+    await pool.query(
+      `INSERT INTO reviews (user_id, nickname, rating, text) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id) DO UPDATE SET nickname = EXCLUDED.nickname, rating = EXCLUDED.rating, text = EXCLUDED.text, created_at = now()`,
+      [uid, nickname, rating, text]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[review] 저장 실패:", e.message);
+    res.status(500).json({ error: "후기 저장 중 문제가 생겼어요." });
+  }
+});
+// 후기 삭제 (운영자 전용 · 부적절 후기 관리)
+app.delete("/api/reviews/:id", async (req, res) => {
+  if (!OWNER_KEY || req.query.key !== OWNER_KEY) return res.status(403).json({ error: "권한 없음" });
+  if (!pool) return res.status(503).json({ error: "DB 없음" });
+  try {
+    await pool.query("DELETE FROM reviews WHERE id = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "삭제 실패" });
+  }
+});
+
+// 내 기록 목록
+app.get("/api/history", async (req, res) => {
+  const uid = getUserId(req);
+  if (!uid || !pool) return res.json({ readings: [] });
+  try {
+    const r = await pool.query(
+      "SELECT id, service, title, created_at FROM readings WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100",
+      [uid]
+    );
+    res.json({ readings: r.rows });
+  } catch {
+    res.json({ readings: [] });
+  }
+});
+
+// 기록 상세
+app.get("/api/history/:id", async (req, res) => {
+  const uid = getUserId(req);
+  if (!uid || !pool) return res.status(404).json({ error: "없음" });
+  try {
+    const r = await pool.query(
+      "SELECT service, title, markdown, created_at FROM readings WHERE id = $1 AND user_id = $2",
+      [req.params.id, uid]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: "없음" });
+    const row = r.rows[0];
+    res.json({ ...row, html: marked.parse(row.markdown || "") });
+  } catch {
+    res.status(404).json({ error: "없음" });
+  }
 });
 
 /* ---------- 타로: 카드 뽑기 ---------- */
@@ -823,6 +1265,18 @@ app.post("/api/interpret", interpretLimiter, async (req, res) => {
 
     if (!text) return res.status(502).json({ error: "AI 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요." });
     stats.readings[service] = (stats.readings[service] || 0) + 1; // 서비스별 통계
+
+    // 로그인한 회원이면 기록 저장 (실패해도 응답에는 영향 없음)
+    const uid = getUserId(req);
+    if (uid && pool) {
+      const title = (typeof req.body?.title === "string" && req.body.title.trim())
+        ? req.body.title.trim().slice(0, 80)
+        : (SERVICE_LABEL[service] || service);
+      pool
+        .query("INSERT INTO readings (user_id, service, title, markdown) VALUES ($1, $2, $3, $4)", [uid, service, title, text])
+        .catch((e) => console.error("[save] 기록 저장 실패:", e.message));
+    }
+
     res.json({ html: marked.parse(text), markdown: text });
   } catch (err) {
     console.error("[interpret] 풀이 오류:", err);
